@@ -3,6 +3,7 @@ langgraph
 langchain
 langchain-community
 langchain-openai
+langchain-google-genai
 
 # Tavily Web Search
 tavily-python
