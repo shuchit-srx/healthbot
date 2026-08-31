@@ -1,0 +1,18 @@
+# Core LangChain / LangGraph
+langgraph
+langchain
+langchain-community
+langchain-openai
+
+# Tavily Web Search
+tavily-python
+
+# Environment Variables
+python-dotenv
+
+# Testing
+pytest
+
+# Jupyter Notebook
+jupyter
+ipykernel
