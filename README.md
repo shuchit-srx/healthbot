@@ -115,6 +115,22 @@ Reset State          END
 Get Health Topic
 ```
 
+## Quick Demonstration
+
+The notebook includes a **Quick Demonstration** section that showcases the core workflow using a sample health topic.
+
+It demonstrates:
+
+- Health-topic validation
+- Tavily medical search
+- Gemini-generated summary
+- Comprehension question generation
+- Answer grading
+- LangGraph state updates
+- Complete workflow structure and routing
+
+The final application cell provides the interactive end-to-end HealthBot experience.
+
 ## LangGraph State
 
 The workflow maintains shared state using a "TypedDict":
@@ -242,34 +258,36 @@ source .venv/bin/activate
 Windows PowerShell:
 
 ```bash
-.venv\Scripts\Activate.ps1
+.\.venv\Scripts\Activate
 ```
 
 ### Install Dependencies
 
 ```bash
-uv pip install -r requirements.txt
+uv add -r requirements.txt
+```
+
+### Show the Dependencies
+
+```bash
+pip list
 ```
 
 ### Configure API Keys
 
-Create *config.env* in the project root:
+Create `config.env` in the project root:
 
 ```env
 GEMINI_API_KEY="your-gemini-api-key"
 TAVILY_API_KEY="your-tavily-api-key"
 ```
-*config.env* is excluded from Git using *.gitignore.*
+`config.env` is excluded from Git using `.gitignore.`
 
-### Run HealthBot
+### Run the Application
 
-Open and execute:
+Open `healthbot.ipynb` and run the notebook cells in order.
 
-```text
-healthbot.ipynb
-```
-
-Run the notebook cells in order and execute the final application cell.
+The **Quick Demonstration** section provides a non-interactive demonstration of the core workflow, while the final application cell runs the complete interactive HealthBot experience.
 
 #### Example
 
