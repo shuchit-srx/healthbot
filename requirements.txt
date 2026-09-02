@@ -1,19 +1,28 @@
-# Core LangChain / LangGraph
-langgraph
+# LangChain / LangGraph
 langchain
+langgraph
 langchain-community
-langchain-openai
 langchain-google-genai
-
-# Tavily Web Search
-tavily-python
+langchain-tavily
 
 # Environment Variables
 python-dotenv
 
-# Testing
-pytest
+# Health Topic Validation
+rapidfuzz
+
+# Biomedical Embeddings
+sentence-transformers
+numpy
 
 # Jupyter Notebook
 jupyter
 ipykernel
+ipywidgets
+jupyterlab_widgets
+widgetsnbextension
+
+# Testing
+pytest
+nbformat
+nbconvert
