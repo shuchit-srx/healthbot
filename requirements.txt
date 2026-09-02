@@ -11,10 +11,6 @@ python-dotenv
 # Health Topic Validation
 rapidfuzz
 
-# Biomedical Embeddings
-sentence-transformers
-numpy
-
 # Jupyter Notebook
 jupyter
 ipykernel
