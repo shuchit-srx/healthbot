@@ -2,71 +2,52 @@
 
 ## Overview
 
-HealthBot is an AI-powered patient education system built using **Python, LangGraph, LangChain, OpenAI, and Tavily**.
+HealthBot is an AI-powered patient education system built using **Python, LangGraph, LangChain, Google Gemini, and Tavily**.
 
-The application helps users learn about health topics and medical conditions by retrieving relevant information from the web, generating a simple patient-friendly summary, and testing the user's understanding through a comprehension quiz.
+It helps users learn about health topics by retrieving medical information from the web, generating a patient-friendly summary, and testing understanding through a short comprehension quiz.
 
-HealthBot uses **LangGraph** to orchestrate the complete workflow and maintain state between different stages of the application.
-
-> **Medical Disclaimer:** HealthBot is an educational prototype and does not provide medical diagnosis, prescribe medication, or replace advice from a qualified healthcare professional.
+> **Medical Disclaimer:** HealthBot is an educational prototype. It does not diagnose medical conditions, prescribe medication, or replace professional medical advice.
 
 ## Problem Statement
 
-Patients often have difficulty understanding medical conditions, treatments, symptoms, and general healthcare information because medical information can be complex and difficult to interpret.
+Medical information can be complex and difficult for patients to understand.
 
-HealthBot addresses this problem by providing a simple conversational workflow that:
+HealthBot simplifies this process by:
 
-1. Accepts a health topic from the user.
-2. Searches for relevant and current medical information.
-3. Converts the information into a patient-friendly explanation.
-4. Tests the user's understanding with a comprehension question.
-5. Evaluates the user's answer.
-6. Provides a grade and explanation.
-7. Allows the user to learn about another health topic.
+- Accepting a health topic from the user.
+- Validating and correcting the topic.
+- Retrieving relevant medical information using Tavily.
+- Generating a patient-friendly summary using Gemini.
+- Generating one comprehension question.
+- Grading the user's answer using the summary as the source of truth.
+- Allowing the user to continue with another topic.
 
-The goal is to demonstrate how Generative AI and workflow orchestration can be used to build an interactive patient education system.
+## Key Features
 
-## Objectives
-
-The main objectives of HealthBot are:
-
-- Provide easy-to-understand information about health topics.
-- Retrieve current information using web search.
-- Use reliable search results as the basis for AI-generated summaries.
-- Generate patient-friendly explanations.
-- Test user comprehension using a quiz.
-- Grade answers based only on the information provided in the summary.
-- Provide explanations and supporting references for grades.
-- Maintain workflow state using LangGraph.
-- Handle invalid user inputs gracefully.
-- Handle API failures and unexpected errors.
-- Reset the application state when the user starts a new topic.
-- Provide a clean exit mechanism.
+- Health-topic validation using **exact matching, fuzzy matching, and Gemini classification**.
+- Spelling correction for common health-topic variations.
+- Web-based medical information retrieval using **Tavily**.
+- Grounded patient-friendly summaries using **Google Gemini**.
+- One-question comprehension check.
+- A–D answer grading with explanation and evidence.
+- Stateful workflow orchestration using **LangGraph**.
+- Retry handling for temporary API failures.
+- Graceful handling of invalid input and unexpected responses.
+- Automated testing using **Pytest**.
 
 ## Technology Stack
 
 | Technology | Purpose |
 |---|---|
 | Python 3.11.13 | Core programming language |
-| Jupyter Notebook | Main application and demonstration |
+| Jupyter Notebook | Application and demonstration |
 | LangGraph | Workflow orchestration and state management |
-| LangChain | LLM and tool integration |
-| OpenAI | Summarization, quiz generation, and answer grading |
-| Tavily | Web search and information retrieval |
-| python-dotenv | Environment variable management |
+| LangChain | AI and tool integration |
+| Google Gemini | Classification, summarization, quiz generation, and grading |
+| Tavily | Medical web search |
+| RapidFuzz | Health-topic matching and spelling correction |
 | Pytest | Automated testing |
-
-### Why These Technologies?
-
-**LangGraph** is used to represent the HealthBot workflow as a stateful graph consisting of multiple nodes and conditional edges.
-
-**LangChain** provides the integration layer for connecting the application with the LLM and Tavily search tool.
-
-**OpenAI** is responsible for transforming retrieved information into patient-friendly content, generating the comprehension question, and evaluating the user's answer.
-
-**Tavily** provides current web-based information that is passed to the AI model.
-
-**Pytest** is used to test validation, state management, error handling, and workflow behavior.
+| python-dotenv | Environment configuration |
 
 ## Project Structure
 
@@ -85,7 +66,7 @@ healthbot/
 
 ## Application Workflow
 
-HealthBot follows a stateful workflow implemented using LangGraph.
+HealthBot is implemented as a stateful LangGraph workflow.
 
 ```text
 START
@@ -94,54 +75,49 @@ START
 Get Health Topic
   |
   v
-Validate Input
+Validate Topic
   |
   v
 Search Medical Information
   |
   v
-Generate Patient-Friendly Summary
+Generate Summary
   |
   v
 Display Summary
   |
   v
-Ask if User is Ready
+Ready for Quiz?
+  |------------------|
+ Yes                 No
+  |                   |
+  v                   v
+Generate Quiz    Session Decision
   |
   v
-Generate One Quiz Question
-  |
-  v
-Get User Answer
+Get Answer
   |
   v
 Grade Answer
   |
   v
-Display Grade and Explanation
+Display Feedback
   |
   v
-Ask for Next Action
-  |
-  +-------------------+
+Session Decision
+  |------------------|
+Another Topic       Exit
   |                   |
-  | Another Topic     | Exit
   v                   v
-Reset State           END
+Reset State          END
   |
   v
 Get Health Topic
 ```
 
-## LangGraph Architecture
+## LangGraph State
 
-HealthBot is implemented as a stateful LangGraph workflow.
-
-### State
-
-The application state contains information shared between workflow nodes.
-
-Typical state fields include:
+The workflow maintains shared state using a "TypedDict":
 
 ```text
 topic
@@ -156,349 +132,186 @@ continue_session
 error
 ```
 
-## Information Retrieval and Summarization
+## AI Workflow
 
-### Tavily Search
+### Topic Validation
 
-HealthBot uses Tavily through the LangChain-compatible search tool to retrieve relevant medical information.
-
-Search queries are constructed using the user's health topic and relevant medical-information keywords.
-
-The application should prioritize reputable sources such as:
-
-- Government health organizations
-- Recognized medical institutions
-- Hospitals
-- Established healthcare organizations
-- Reputable medical information providers
-
-### Summarization
-
-The retrieved Tavily information is passed to OpenAI for summarization.
-
-The summarization prompt instructs the model to:
-
-- Use only the provided Tavily results.
-- Avoid using outside information.
-- Generate a 3–4 paragraph explanation.
-- Use simple and patient-friendly language.
-- Avoid diagnosing the user.
-- Avoid unsupported medical claims.
-- Preserve relevant source information.
-
-The summary therefore remains grounded in the information retrieved during the search process.
-
-## Comprehension Quiz
-
-After the user reads the summary, HealthBot generates exactly **one comprehension question**.
-
-The quiz-generation process uses only the generated summary.
-
-The model is instructed to:
-
-- Generate exactly one question.
-- Use only information present in the summary.
-- Avoid introducing external knowledge.
-- Ensure that the question can be answered using the summary.
-
-Example:
+The user's topic passes through:
 
 ```text
-Summary:
-Regular physical activity can improve cardiovascular health.
-
-Question:
-What health benefit of regular physical activity is mentioned in the summary?
+Normalize
+   ↓
+Exact Match
+   ↓
+Fuzzy Match
+   ↓
+Gemini Classification
 ```
+This allows HealthBot to handle common spelling mistakes while rejecting non-health-related topics.
 
-## Answer Grading
+### Information Retrieval
 
-The user's answer is evaluated using the generated summary as the source of truth.
+Tavily searches the web using the validated health topic and medical-information keywords.
 
-The grading process provides:
+Only search results containing usable content are passed to Gemini.
 
-- A grade such as A, B, C, or D.
-- An explanation of the grade.
-- Supporting evidence from the summary.
-- Relevant citations or source references.
+### Patient-Friendly Summary
 
-The grading prompt explicitly instructs the model not to use outside knowledge.
+Gemini generates a 3–4 paragraph explanation using only the retrieved search results.
 
-### Example
+The prompt instructs the model to avoid:
 
-```text
-Grade: B
+- Diagnosis
+- Personalized medical advice
+- Medication prescriptions
+- Unsupported medical claims
 
-Explanation:
-The answer identifies the main concept correctly but does not
-include all of the information described in the summary.
+### Comprehension Quiz
 
-Evidence:
-The summary explains that ...
+If the user chooses Yes, Gemini generates exactly one question based only on the generated summary.
 
-Source:
-Relevant source reference
-```
+If the user chooses No, the quiz is skipped.
 
-## Input Validation
+### Answer Grading
 
-HealthBot validates user input throughout the workflow.
+The user's answer is evaluated against the generated summary.
 
-### Health Topic
-
-The application rejects:
-
-- Empty input.
-- Whitespace-only input.
-- Extremely short or meaningless input.
-
-Example:
+The result contains:
 
 ```text
-Please enter a valid health topic or medical condition.
-Accepted inputs: yes/y/ready/no/n
-Supported exit commands: exit/quit/q
+Grade: A / B / C / D
+Explanation
+Evidence
+Source
 ```
 
 ## Error Handling
 
-HealthBot includes error handling at different levels of the application.
+HealthBot handles failures at multiple stages:
 
-### API Configuration Errors
-
-The application checks that required API keys are available before starting.
-
-Missing credentials result in a clear configuration error.
-
-### Tavily Errors
-
-The application handles:
-
-- Invalid API keys.
-- Network failures.
-- Rate limits.
-- Service errors.
+- Missing API credentials.
+- Invalid or empty user input.
+- Tavily search failures.
 - Empty search results.
+- Gemini service failures.
+- Empty or malformed Gemini responses.
+- Invalid grading output.
+- Temporary failures using retry logic.
 
-Limited retries can be used for temporary failures.
-
-If the search ultimately fails, the user receives a clear message rather than a Python traceback.
-
-### OpenAI Errors
-
-The application handles:
-
-- Invalid API keys.
-- Rate limits.
-- Timeouts.
-- Service failures.
-- Empty model responses.
-
-Temporary failures can be retried before returning a graceful error.
-
-### Empty Search Results
-
-If Tavily does not return useful information, HealthBot does not invent medical information.
-
-The user is asked to try a more specific health topic.
-
-### Empty Model Responses
-
-If the model returns an empty summary, quiz question, or grading response, the application handles the failure instead of continuing with invalid state.
-
-### Unexpected Errors
-
-Unexpected internal errors should not expose technical details to the user.
-
-Example:
-
-```text
-Something went wrong while processing your request.
-Please try again.
-```
-
-## State Reset
-
-State reset is required when the user chooses to learn about another topic.
-
-For example:
-
-```text
-Topic 1: Diabetes
-        |
-        v
-Summary: Diabetes information
-        |
-        v
-Quiz and Grade
-        |
-        v
-New Topic: Hypertension
-```
-
-## Medical Safety
-
-HealthBot is designed as a patient education prototype and not as a medical diagnostic system.
-
-The AI prompts instruct the model to:
-
-- Provide general educational information.
-- Avoid diagnosing individual users.
-- Avoid prescribing medication.
-- Avoid recommending changes to prescribed treatment.
-- Avoid unsupported medical claims.
-- Encourage consultation with qualified healthcare professionals when appropriate.
-
-A disclaimer is displayed to make the purpose of the system clear:
-
-```text
-This information is for educational purposes only and does not replace
-advice from a qualified healthcare professional.
-```
+Errors are stored in the workflow state and handled without unnecessarily terminating the application.
 
 ## Testing
 
-HealthBot uses **Pytest** for automated testing.
+Automated tests are implemented using Pytest.
 
-Tests are located in:
-
-```text
-tests/
-└── test_healthbot.py
+```bash
+pytest -v
 ```
 
-## Test Cases
+The test suite covers:
 
-| Test Case | Expected Result |
-|---|---|
-| Valid health topic | Workflow continues |
-| Empty topic | User is asked again |
-| Whitespace topic | User is asked again |
-| Very short topic | User is asked for a better topic |
-| No useful search results | Graceful error |
-| Tavily failure | Retry and/or graceful error |
-| OpenAI failure | Retry and/or graceful error |
-| Empty summary | Graceful failure |
-| Valid ready response | Continue |
-| Invalid ready response | Ask again |
-| Quiz generated | Exactly one question |
-| Empty quiz answer | Ask again |
-| Valid quiz answer | Answer is graded |
-| Answer grading | Grade and explanation returned |
-| New topic | Previous state is cleared |
-| Exit command | Workflow terminates |
+- Utility functions
+- Prompt formatting
+- Retry behavior
+- Health-topic validation
+- Gemini response handling
+- Workflow nodes
+- Error handling
+- Quiz routing
+- Session routing
+- State reset
+- End-to-end workflow behavior with mocked external services
 
 ## Installation
 
-### 1. Clone or download the project
-
-```bash
-cd healthbot
-```
-
-### 2. Create the virtual environment
+### Create Environment
 
 ```bash
 pip install uv
 uv venv --python 3.11.13
 ```
 
-### 3. Activate the environment
+### Activate Environment
 
-#### Windows PowerShell:
-```bash
-.\\.venv\\Scripts\\Activate
-```
-#### macOS/Linux:
+macOS/Linux:
+
 ```bash
 source .venv/bin/activate
 ```
 
-### 4. Install dependencies
+Windows PowerShell:
+
 ```bash
-uv add -r requirements.txt
+.venv\Scripts\Activate.ps1
 ```
 
-### 5. Configure API keys
+### Install Dependencies
+
 ```bash
-OPENAI_API_KEY="your-openai-api-key"
+uv pip install -r requirements.txt
+```
+
+### Configure API Keys
+
+Create *config.env* in the project root:
+
+```env
+GEMINI_API_KEY="your-gemini-api-key"
 TAVILY_API_KEY="your-tavily-api-key"
 ```
+*config.env* is excluded from Git using *.gitignore.*
 
-### 6. Run the application
-```bash
+### Run HealthBot
+
+Open and execute:
+
+```text
 healthbot.ipynb
 ```
 
-### 7. Run tests
-```bash
-pytest -v
-```
+Run the notebook cells in order and execute the final application cell.
 
-## Example Usage
-
-A typical session looks like:
+#### Example
 
 ```text
-==================================================
-HEALTHBOT
-AI-Powered Patient Education System
-==================================================
-
-What health topic would you like to learn about?
-
+What health topic or medical condition would you like to learn about?
 > diabetes
 
-Searching reliable medical sources...
-
-==================================================
 HEALTH INFORMATION
-==================================================
 
-[3–4 paragraph patient-friendly summary]
+[Patient-friendly summary]
 
-==================================================
+Are you ready for the comprehension check? (yes/no)
+> yes
 
-Are you ready for the comprehension check?
-
-> ready
-
-==================================================
-COMPREHENSION CHECK
-==================================================
-
-[One comprehension question]
+Question:
+[Generated question]
 
 Your answer:
-> [user answer]
+> [User answer]
 
-==================================================
-RESULT
-==================================================
+QUIZ RESULT
 
 Grade: A
 
-Explanation:
-[Explanation based on the summary]
+Feedback:
+[Explanation and evidence]
 
-Evidence:
-[Relevant information from the summary]
-
-Sources:
-[Relevant source references]
-
-Would you like to learn about another health topic?
-
+Would you like to learn about another health topic? (yes/no)
 > no
-
-Thank you for using HealthBot.
 ```
+
+## Limitations
+
+- HealthBot is an educational prototype, not a diagnostic system.
+- Generated information depends on the quality of retrieved web sources and AI responses.
+- The system depends on external Gemini and Tavily APIs.
+- The current implementation runs as a Jupyter Notebook rather than a production web application.
 
 ## Conclusion
 
+Conclusion
 
-HealthBot demonstrates how Generative AI, web search, tool calling, state management, and LangGraph workflow orchestration can be combined to create an interactive patient education application.
+HealthBot demonstrates how **Generative AI, web search, LangChain, and LangGraph** can be combined to build a stateful patient education workflow.
 
-The system retrieves current information, produces grounded patient-friendly explanations, tests comprehension, evaluates answers, handles invalid inputs and API failures, and maintains clean state between topics.
-
-The project provides a practical demonstration of Full Stack Generative AI concepts while keeping the implementation simple enough to understand, test, and demonstrate.
+The project focuses on **grounded information retrieval, patient-friendly generation, comprehension evaluation, error handling, and workflow orchestration** while keeping the implementation simple and testable.
