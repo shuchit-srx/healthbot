@@ -264,7 +264,7 @@ Windows PowerShell:
 ### Install Dependencies
 
 ```bash
-uv add -r requirements.txt
+uv pip install -r requirements.txt
 ```
 
 ### Show the Dependencies
