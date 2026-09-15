@@ -158,3 +158,68 @@ def test_session_endpoint():
     data = response.json()
 
     assert data["data"]["continue_session"] is True
+
+
+def test_topic_validation_empty():
+    response = client.post(
+        "/api/topics/validate",
+        json={
+            "topic": "",
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_topic_validation_too_long():
+    response = client.post(
+        "/api/topics/validate",
+        json={
+            "topic": "a" * 201,
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_quiz_answer_empty():
+    response = client.post(
+        "/api/quiz/grade",
+        params={
+            "topic": "diabetes",
+            "summary": "Diabetes affects blood glucose.",
+            "quiz_question": "What does diabetes affect?",
+        },
+        json={
+            "user_answer": "",
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_quiz_answer_too_long():
+    response = client.post(
+        "/api/quiz/grade",
+        params={
+            "topic": "diabetes",
+            "summary": "Diabetes affects blood glucose.",
+            "quiz_question": "What does diabetes affect?",
+        },
+        json={
+            "user_answer": "a" * 2001,
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_invalid_session_payload():
+    response = client.post(
+        "/api/session/decision",
+        json={
+            "continue_session": "invalid",
+        },
+    )
+
+    assert response.status_code == 422
