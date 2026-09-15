@@ -1,0 +1,1 @@
+"""HealthBot request and response models."""

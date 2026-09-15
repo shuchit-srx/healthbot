@@ -1,14 +1,54 @@
-from app.graph.workflow import healthbot_app
-from app.utils.state_helpers import reset_state
+from fastapi import FastAPI
+
+from app.core.config import settings
+from app.core.error_handlers import (
+    generic_exception_handler,
+    healthbot_exception_handler,
+)
+from app.core.exceptions import HealthBotError
+from app.core.logging import get_logger, setup_logging
 
 
-def run_healthbot():
-    """Run the HealthBot application."""
+setup_logging(settings.debug)
 
-    initial_state = reset_state()
-
-    return healthbot_app.invoke(initial_state)
+logger = get_logger(__name__)
 
 
-if __name__ == "__main__":
-    run_healthbot()
+app = FastAPI(
+    title=settings.app_name,
+    version=settings.app_version,
+    description="AI-powered patient education assistant.",
+)
+
+
+app.add_exception_handler(
+    HealthBotError,
+    healthbot_exception_handler,
+)
+
+app.add_exception_handler(
+    Exception,
+    generic_exception_handler,
+)
+
+
+@app.get("/health")
+def health_check() -> dict[str, str]:
+    """Return the current API health status."""
+
+    return {
+        "status": "healthy",
+        "service": settings.app_name,
+        "version": settings.app_version,
+    }
+
+
+@app.get("/")
+def root() -> dict[str, str]:
+    """Return basic API information."""
+
+    return {
+        "service": settings.app_name,
+        "version": settings.app_version,
+        "status": "running",
+    }

@@ -1,0 +1,1 @@
+"""HealthBot backend application package."""
