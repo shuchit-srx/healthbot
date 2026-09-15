@@ -1,41 +1,49 @@
-# Environment 
-config.env
+# Environment & secrets
+.config
 .env
 .env.*
 *.env
 
-# Virtual Environment
+# Virtual environments
 .venv/
 venv/
 env/
 
-# Python Cache
+# Python cache
 __pycache__/
 *.py[cod]
 *$py.class
 
-# Pytest
+# Testing
 .pytest_cache/
 .coverage
+.coverage.*
 htmlcov/
 
-# Jupyter Notebook
+# Jupyter
 .ipynb_checkpoints/
 
-# IDE / Editor
+# IDE
 .vscode/
 .idea/
 
-# OS Generated Files
+# macOS
 .DS_Store
-Thumbs.db
-
-# UV / Build Artifacts
-.python-version
-dist/
-build/
-*.egg-info/
 
 # Logs
 *.log
 logs/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+
+
+.venv/
+.config
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.env
+.env.*
