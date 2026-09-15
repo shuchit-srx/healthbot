@@ -2,83 +2,115 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 
 from app.core.config import settings
 from app.core.logging import get_logger
-from app.utils.helpers import is_valid_text
-from app.utils.retry import retry_operation
 
 
 logger = get_logger(__name__)
 
 
 class GeminiService:
-    """Service responsible for interacting with Google Gemini."""
+    """Service for interacting with Google Gemini."""
 
-    def __init__(self):
-        self.llm = ChatGoogleGenerativeAI(
-            model="gemini-3.5-flash",
-            temperature=0,
-            google_api_key=settings.gemini_api_key,
+    def __init__(self) -> None:
+        self.api_keys = settings.gemini_api_keys
+
+        if not self.api_keys:
+            raise ValueError(
+                "At least one Gemini API key is required."
+            )
+
+        self.current_key_index = 0
+
+        self.llm = self._create_llm(
+            self.api_keys[self.current_key_index]
         )
 
-    def generate_with_gemini(self, prompt: str) -> str:
-        """Generate validated text using Gemini with retry handling."""
+    def _create_llm(
+        self,
+        api_key: str,
+    ) -> ChatGoogleGenerativeAI:
+        """Create a Gemini client using the provided API key."""
 
-        if not is_valid_text(prompt):
-            raise ValueError("Prompt cannot be empty.")
+        return ChatGoogleGenerativeAI(
+            model="gemini-3.5-flash",
+            temperature=0,
+            google_api_key=api_key,
+        )
 
-        def generate() -> str:
-            logger.debug("Sending request to Gemini.")
+    def _switch_to_next_key(self) -> bool:
+        """Switch to the next available Gemini API key."""
 
-            response = self.llm.invoke(prompt)
+        if (
+            self.current_key_index
+            >= len(self.api_keys) - 1
+        ):
+            return False
 
-            content = getattr(response, "content", None)
+        self.current_key_index += 1
 
-            if content is None:
-                raise ValueError(
-                    "Gemini returned no content."
-                )
+        self.llm = self._create_llm(
+            self.api_keys[self.current_key_index]
+        )
 
-            if isinstance(content, str):
-                text = content.strip()
+        logger.warning(
+            "Switched to Gemini API key %s.",
+            self.current_key_index + 1,
+        )
 
-            elif isinstance(content, list):
-                text_parts = []
+        return True
 
-                for item in content:
-                    if isinstance(item, str):
-                        text_parts.append(item)
+    def generate_with_gemini(
+        self,
+        prompt: str,
+    ) -> str:
+        """Generate a response using Gemini with key fallback."""
 
-                    elif isinstance(item, dict):
-                        if item.get("type") == "text":
-                            value = item.get("text", "")
-
-                            if is_valid_text(value):
-                                text_parts.append(value)
-
-                text = "\n".join(text_parts).strip()
-
-            else:
-                text = str(content).strip()
-
-            if not text:
-                raise ValueError(
-                    "Gemini returned an empty response."
-                )
-
-            logger.debug("Gemini response received successfully.")
-
-            return text
-
-        try:
-            return retry_operation(
-                generate,
-                max_attempts=3,
-                delay=2,
+        if not prompt or not prompt.strip():
+            raise ValueError(
+                "Prompt cannot be empty."
             )
 
-        except Exception as exc:
-            logger.exception(
-                "Gemini request failed after retries."
-            )
-            raise RuntimeError(
-                f"Gemini service failed: {exc}"
-            ) from exc
+        total_keys = len(self.api_keys)
+
+        for attempt in range(total_keys):
+            try:
+                logger.info(
+                    "Calling Gemini using API key %s/%s.",
+                    self.current_key_index + 1,
+                    total_keys,
+                )
+
+                response = self.llm.invoke(prompt)
+
+                content = getattr(
+                    response,
+                    "content",
+                    None,
+                )
+
+                if not content or not str(content).strip():
+                    raise RuntimeError(
+                        "Gemini returned an empty response."
+                    )
+
+                return str(content).strip()
+
+            except Exception as exc:
+                logger.warning(
+                    "Gemini API key %s failed: %s",
+                    self.current_key_index + 1,
+                    exc,
+                )
+
+                if not self._switch_to_next_key():
+                    logger.exception(
+                        "All Gemini API keys failed."
+                    )
+
+                    raise RuntimeError(
+                        "Gemini service failed after "
+                        f"trying all {total_keys} API keys."
+                    ) from exc
+
+        raise RuntimeError(
+            "Gemini service failed."
+        )

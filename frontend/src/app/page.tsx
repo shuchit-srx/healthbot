@@ -1,35 +1,39 @@
+"use client";
+
+import { useState } from "react";
+import { Info } from "lucide-react";
+
 import Header from "@/src/components/Header";
 import Footer from "@/src/components/Footer";
 import HealthBot from "@/src/components/HealthBot";
 
 export default function Home() {
+  const [newTopicKey, setNewTopicKey] =
+    useState(0);
+
+  function handleNewTopic() {
+    setNewTopicKey(
+      (current) => current + 1
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-slate-50">
-      <Header />
+    <div className="min-h-screen bg-[#f7f9fc]">
+      <Header
+        onNewTopic={handleNewTopic}
+      />
 
-      <main className="mx-auto max-w-6xl px-6 py-10">
-        <div className="mx-auto max-w-3xl">
-          <div className="mb-10 text-center">
-            <p className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-500">
-              AI-powered health education
-            </p>
+      <HealthBot key={newTopicKey} />
 
-            <h1 className="text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">
-              Understand your health,
-              <br />
-              one topic at a time.
-            </h1>
+      <div className="border-t border-slate-200/60 bg-white/50">
+        <div className="mx-auto flex max-w-6xl items-center justify-center gap-2 px-6 py-3 text-center text-[11px] text-slate-400">
+          <Info size={13} />
 
-            <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-slate-600">
-              HealthBot researches health information,
-              explains it in simple language, and checks
-              your understanding with a short quiz.
-            </p>
-          </div>
-
-          <HealthBot />
+          HealthBot is an educational assistant and
+          should not be used for diagnosis or emergency
+          medical decisions.
         </div>
-      </main>
+      </div>
 
       <Footer />
     </div>

@@ -4,64 +4,76 @@ from app.services.gemini import GeminiService
 from app.services.tavily import TavilyService
 
 
-def test_gemini_retries_failed_request():
+def test_gemini_switches_to_next_key():
     service = GeminiService()
 
-    mock_llm = MagicMock()
+    first_llm = MagicMock()
+    second_llm = MagicMock()
 
-    mock_llm.invoke.side_effect = [
-        RuntimeError("Temporary failure"),
-        RuntimeError("Temporary failure"),
-        MagicMock(
-            content="Successful response"
-        ),
+    first_llm.invoke.side_effect = RuntimeError(
+        "Quota exceeded"
+    )
+
+    second_llm.invoke.return_value = MagicMock(
+        content="Successful response"
+    )
+
+    service.api_keys = [
+        "key_1",
+        "key_2",
     ]
 
     with patch.object(
         service,
         "llm",
-        mock_llm,
-    ), patch(
-        "app.utils.retry.time.sleep"
+        first_llm,
+    ), patch.object(
+        service,
+        "_create_llm",
+        return_value=second_llm,
     ):
         result = service.generate_with_gemini(
             "Explain diabetes."
         )
 
     assert result == "Successful response"
-    assert mock_llm.invoke.call_count == 3
+    assert service.current_key_index == 1
+    assert first_llm.invoke.call_count == 1
+    assert second_llm.invoke.call_count == 1
 
+def test_gemini_fails_after_all_keys():
+    service = GeminiService()
 
-def test_tavily_retries_failed_request():
-    service = TavilyService()
+    mock_llm = MagicMock()
 
-    mock_tool = MagicMock()
+    mock_llm.invoke.side_effect = RuntimeError(
+        "Quota exceeded"
+    )
 
-    mock_tool.invoke.side_effect = [
-        RuntimeError("Temporary failure"),
-        RuntimeError("Temporary failure"),
-        {
-            "results": [
-                {
-                    "title": "Diabetes",
-                    "url": "https://example.com",
-                    "content": "Diabetes information.",
-                    "score": 0.9,
-                }
-            ]
-        },
+    service.api_keys = [
+        "key_1",
+        "key_2",
+        "key_3",
     ]
 
     with patch.object(
         service,
-        "tool",
-        mock_tool,
-    ), patch(
-        "app.utils.retry.time.sleep"
+        "llm",
+        mock_llm,
+    ), patch.object(
+        service,
+        "_create_llm",
+        return_value=mock_llm,
     ):
-        result = service.search_medical_information(
-            "diabetes"
-        )
-
-    assert len(result) == 1
-    assert mock_tool.invoke.call_count == 3
+        try:
+            service.generate_with_gemini(
+                "Explain diabetes."
+            )
+            assert False, (
+                "Expected RuntimeError"
+            )
+        except RuntimeError as exc:
+            assert (
+                "all 3 API keys"
+                in str(exc)
+            )

@@ -1,4 +1,4 @@
-import { CheckCircle2 } from "lucide-react";
+import { Check } from "lucide-react";
 
 export default function TopicValidation({
   topic,
@@ -6,21 +6,17 @@ export default function TopicValidation({
   topic: string;
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-green-200 bg-green-50 p-4 text-green-700">
-      <CheckCircle2 size={20} />
-
-      <div>
-        <p className="text-sm font-medium">
-          Topic recognized
-        </p>
-
-        <p className="text-sm">
-          Learning about:{" "}
-          <span className="font-semibold">
-            {topic}
-          </span>
-        </p>
+    <div className="animate-in flex items-center gap-2 text-sm text-slate-500">
+      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-teal-50 text-teal-700">
+        <Check size={14} />
       </div>
+
+      <span>
+        Learning about{" "}
+        <span className="font-medium text-slate-800">
+          {topic}
+        </span>
+      </span>
     </div>
   );
 }

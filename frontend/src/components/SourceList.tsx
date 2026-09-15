@@ -1,4 +1,8 @@
-import { ExternalLink } from "lucide-react";
+import {
+  ExternalLink,
+  Link2,
+} from "lucide-react";
+
 import type { Source } from "@/src/types/healthbot";
 
 export default function SourceList({
@@ -11,34 +15,37 @@ export default function SourceList({
   }
 
   return (
-    <section className="rounded-2xl border bg-white p-6 shadow-sm">
-      <h3 className="mb-4 text-lg font-semibold text-slate-900">
+    <section className="animate-in ml-0 mt-5 sm:ml-13">
+      <div className="mb-3 flex items-center gap-2 text-sm font-medium text-slate-700">
+        <Link2 size={16} />
         Sources
-      </h3>
+      </div>
 
-      <div className="space-y-3">
+      <div className="grid gap-2 sm:grid-cols-2">
         {sources.map((source, index) => (
           <a
             key={`${source.url}-${index}`}
             href={source.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-start justify-between gap-4 rounded-xl border p-4 transition hover:bg-slate-50"
+            className="group rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-teal-200 hover:bg-teal-50/30"
           >
-            <div>
-              <p className="font-medium text-slate-900">
-                {source.title}
-              </p>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="line-clamp-2 text-sm font-medium text-slate-800 group-hover:text-teal-700">
+                  {source.title}
+                </p>
 
-              <p className="mt-1 line-clamp-2 text-sm text-slate-500">
-                {source.content}
-              </p>
+                <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-500">
+                  {source.content}
+                </p>
+              </div>
+
+              <ExternalLink
+                size={15}
+                className="shrink-0 text-slate-400 transition group-hover:text-teal-600"
+              />
             </div>
-
-            <ExternalLink
-              size={18}
-              className="mt-1 shrink-0 text-slate-500"
-            />
           </a>
         ))}
       </div>

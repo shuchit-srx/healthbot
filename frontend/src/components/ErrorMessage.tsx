@@ -1,4 +1,4 @@
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, X } from "lucide-react";
 
 export default function ErrorMessage({
   message,
@@ -6,15 +6,25 @@ export default function ErrorMessage({
   message: string;
 }) {
   return (
-    <div className="flex gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">
-      <AlertCircle
-        size={20}
-        className="mt-0.5 shrink-0"
-      />
+    <div className="animate-in flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50/80 p-4">
+      <div className="mt-0.5 rounded-full bg-red-100 p-1.5 text-red-600">
+        <AlertCircle size={16} />
+      </div>
 
-      <p className="text-sm">
-        {message}
-      </p>
+      <div className="flex-1">
+        <p className="text-sm font-medium text-red-800">
+          Something went wrong
+        </p>
+
+        <p className="mt-1 text-sm leading-6 text-red-700">
+          {message}
+        </p>
+      </div>
+
+      <X
+        size={17}
+        className="text-red-400"
+      />
     </div>
   );
 }

@@ -7,3 +7,4 @@ langgraph
 rapidfuzz
 pytest
 httpx
+pydantic-settings

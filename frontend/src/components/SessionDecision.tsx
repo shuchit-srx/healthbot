@@ -1,3 +1,8 @@
+import {
+  ArrowRight,
+  Plus,
+} from "lucide-react";
+
 interface SessionDecisionProps {
   onContinue: () => void;
   onFinish: () => void;
@@ -8,30 +13,29 @@ export default function SessionDecision({
   onFinish,
 }: SessionDecisionProps) {
   return (
-    <section className="rounded-2xl border bg-white p-6 text-center shadow-sm">
-      <h2 className="text-lg font-semibold text-slate-900">
-        Continue learning?
-      </h2>
+    <section className="animate-in ml-0 mt-6 sm:ml-13">
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p className="text-sm font-medium text-slate-800">
+          What would you like to do next?
+        </p>
 
-      <p className="mt-2 text-sm text-slate-500">
-        Explore another health topic or finish
-        your session.
-      </p>
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+          <button
+            onClick={onContinue}
+            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-slate-700"
+          >
+            <Plus size={16} />
+            Learn another topic
+          </button>
 
-      <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-        <button
-          onClick={onContinue}
-          className="flex-1 rounded-xl bg-slate-900 px-5 py-3 font-medium text-white hover:bg-slate-800"
-        >
-          Learn another topic
-        </button>
-
-        <button
-          onClick={onFinish}
-          className="flex-1 rounded-xl border border-slate-300 px-5 py-3 font-medium text-slate-700 hover:bg-slate-50"
-        >
-          Finish session
-        </button>
+          <button
+            onClick={onFinish}
+            className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+          >
+            Finish session
+            <ArrowRight size={16} />
+          </button>
+        </div>
       </div>
     </section>
   );
