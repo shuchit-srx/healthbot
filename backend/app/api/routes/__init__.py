@@ -1,0 +1,1 @@
+"""HealthBot API routes."""

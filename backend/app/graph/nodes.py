@@ -1,404 +1,246 @@
-from app.core.prompts import SUMMARY_PROMPT
-from app.graph.state import HealthBotState
+from app.core.logging import get_logger
+from app.core.prompts import (
+    GRADING_PROMPT,
+    QUIZ_PROMPT,
+    SUMMARY_PROMPT,
+)
 from app.services.gemini import GeminiService
+from app.services.response_parser import extract_grade
 from app.services.tavily import TavilyService
 from app.services.topic_validator import TopicValidator
-from app.utils.helpers import format_prompt, is_valid_text
-from app.core.prompts import QUIZ_PROMPT
-from app.core.prompts import GRADING_PROMPT
-from app.services.response_parser import extract_grade
-from app.utils.state_helpers import reset_state
+from app.utils.helpers import format_prompt
+from app.utils.state_helpers import create_error_state
+from app.graph.state import HealthBotState
 
 
-topic_validator = TopicValidator()
-tavily_service = TavilyService()
+logger = get_logger(__name__)
+
+
 gemini_service = GeminiService()
+tavily_service = TavilyService()
+topic_validator = TopicValidator()
 
 
-def get_topic(state: HealthBotState) -> HealthBotState:
-    """Get and validate a health topic from the user."""
+def validate_topic_node(
+    state: HealthBotState,
+) -> HealthBotState:
+    """Validate and normalize the user's health topic."""
 
-    while True:
-        topic = input(
-            "\nWhat health topic or medical condition "
-            "would you like to learn about?\n> "
-        ).strip()
+    topic = state.get("topic", "")
 
-        if not topic:
-            print("Please enter a health topic.")
-            continue
-
-        is_valid, corrected_topic = (
+    try:
+        is_valid, normalized_topic = (
             topic_validator.validate_health_topic(topic)
         )
 
         if not is_valid:
-            print(
-                "\nThe topic does not appear to be "
-                "health-related."
+            return create_error_state(
+                "The provided topic is not recognized as a health topic."
             )
-            print("Please enter a medical or health topic.")
-            continue
-
-        final_topic = corrected_topic or topic
-
-        if final_topic.lower() != topic.lower():
-            print(f"\nCorrected health topic: {final_topic}")
-        else:
-            print(f"\nHealth topic accepted: {final_topic}")
 
         return {
-            "topic": final_topic,
+            **state,
+            "topic": normalized_topic,
             "error": "",
         }
 
+    except Exception as exc:
+        logger.exception(
+            "Topic validation node failed."
+        )
 
-def search_node(state: HealthBotState) -> HealthBotState:
-    """Search for medical information using the validated topic."""
+        return create_error_state(
+            f"Topic validation failed: {exc}"
+        )
+
+
+def search_node(
+    state: HealthBotState,
+) -> HealthBotState:
+    """Retrieve medical information for the validated topic."""
 
     topic = state.get("topic", "")
 
-    if not is_valid_text(topic):
-        return {
-            "search_results": [],
-            "error": "Health topic is missing.",
-        }
-
     try:
-        results = tavily_service.search_medical_information(topic)
-
-        if not results:
-            return {
-                "search_results": [],
-                "error": "No medical information found.",
-            }
+        results = tavily_service.search_medical_information(
+            topic
+        )
 
         return {
+            **state,
             "search_results": results,
             "error": "",
         }
 
-    except Exception as e:
-        return {
-            "search_results": [],
-            "error": f"Medical search failed: {e}",
-        }
+    except Exception as exc:
+        logger.exception(
+            "Search node failed."
+        )
+
+        return create_error_state(
+            f"Medical information search failed: {exc}"
+        )
 
 
-def summarize_information(state: HealthBotState) -> HealthBotState:
-    """Generate a patient-friendly summary from medical search results."""
+def summarize_information_node(
+    state: HealthBotState,
+) -> HealthBotState:
+    """Generate a patient-friendly summary from search results."""
 
     topic = state.get("topic", "")
     search_results = state.get("search_results", [])
 
-    if not is_valid_text(topic):
-        return {
-            "summary": "",
-            "error": "Health topic is missing.",
-        }
-
-    if not isinstance(search_results, list) or not search_results:
-        return {
-            "summary": "",
-            "error": "No medical information available for summarization.",
-        }
-
-    formatted_results = []
-
-    for result in search_results:
-        if not isinstance(result, dict):
-            continue
-
-        content = result.get("content", "")
-
-        if not is_valid_text(content):
-            continue
-
-        formatted_results.append(
-            f"Title: {result.get('title', 'N/A')}\n"
-            f"URL: {result.get('url', 'N/A')}\n"
-            f"Content: {content}"
+    if not search_results:
+        return create_error_state(
+            "No medical information is available for summarization."
         )
 
-    if not formatted_results:
-        return {
-            "summary": "",
-            "error": "Search results contain no usable information.",
-        }
-
-    search_context = "\n\n".join(formatted_results)
-
-    prompt = format_prompt(
-        SUMMARY_PROMPT,
-        topic=topic,
-        search_results=search_context,
-    )
-
     try:
-        summary = gemini_service.generate_with_gemini(prompt)
+        prompt = format_prompt(
+            SUMMARY_PROMPT,
+            topic=topic,
+            search_results=search_results,
+        )
 
-        if not is_valid_text(summary):
-            return {
-                "summary": "",
-                "error": "Gemini returned an empty summary.",
-            }
-
-        return {
-            "summary": summary.strip(),
-            "error": "",
-        }
-
-    except Exception as e:
-        return {
-            "summary": "",
-            "error": f"Summarization failed: {e}",
-        }
-
-
-def display_summary(state: HealthBotState) -> HealthBotState:
-    """Display the summary and ask whether to continue to the quiz."""
-
-    summary = state.get("summary", "").strip()
-
-    if not summary:
-        return {
-            "ready_for_quiz": False,
-            "error": "Summary is unavailable.",
-        }
-
-    print("\n" + "=" * 60)
-    print("HEALTH INFORMATION")
-    print("=" * 60)
-    print(summary)
-    print("=" * 60)
-
-    while True:
-        response = input(
-            "\nAre you ready for the comprehension check? (yes/no)\n> "
-        ).strip().lower()
-
-        if response in {"yes", "y"}:
-            return {
-                "ready_for_quiz": True,
-                "error": "",
-            }
-
-        if response in {"no", "n"}:
-            return {
-                "ready_for_quiz": False,
-                "error": "",
-            }
-
-        print("Invalid input. Please enter yes or no.")
-
-def route_quiz(state: HealthBotState) -> str:
-    """Route the workflow based on whether the user wants the quiz."""
-
-    if state.get("ready_for_quiz", False):
-        return "generate_quiz"
-
-    return "session_decision"
-
-def generate_quiz(state: HealthBotState) -> HealthBotState:
-    """Generate one comprehension question based only on the summary."""
-
-    summary = state.get("summary", "")
-
-    if not is_valid_text(summary):
-        return {
-            "quiz_question": "",
-            "ready_for_quiz": False,
-            "error": "Summary is missing. Cannot generate quiz.",
-        }
-
-    prompt = format_prompt(
-        QUIZ_PROMPT,
-        summary=summary,
-    )
-
-    try:
-        question = gemini_service.generate_with_gemini(prompt)
-
-        if not is_valid_text(question):
-            return {
-                "quiz_question": "",
-                "ready_for_quiz": False,
-                "error": "Gemini returned an empty quiz question.",
-            }
+        summary = gemini_service.generate_with_gemini(
+            prompt
+        )
 
         return {
-            "quiz_question": question.strip(),
+            **state,
+            "summary": summary,
             "ready_for_quiz": True,
             "error": "",
         }
 
-    except Exception as e:
+    except Exception as exc:
+        logger.exception(
+            "Summary generation node failed."
+        )
+
+        return create_error_state(
+            f"Summary generation failed: {exc}"
+        )
+
+
+def generate_quiz_node(
+    state: HealthBotState,
+) -> HealthBotState:
+    """Generate one comprehension question from the summary."""
+
+    summary = state.get("summary", "")
+
+    if not summary:
+        return create_error_state(
+            "Cannot generate a quiz without a summary."
+        )
+
+    try:
+        prompt = format_prompt(
+            QUIZ_PROMPT,
+            summary=summary,
+        )
+
+        question = gemini_service.generate_with_gemini(
+            prompt
+        )
+
         return {
-            "quiz_question": "",
-            "ready_for_quiz": False,
-            "error": f"Quiz generation failed: {e}",
-        }
-
-def get_quiz_answer(state: HealthBotState) -> HealthBotState:
-    """Collect the user's answer to the generated quiz question."""
-
-    question = state.get("quiz_question", "")
-
-    if not is_valid_text(question):
-        return {
-            "user_answer": "",
-            "error": "Quiz question is missing.",
-        }
-
-    while True:
-        answer = input(
-            f"\nQuestion:\n{question}\n\nYour answer:\n> "
-        ).strip()
-
-        if not answer:
-            print("Please provide an answer before continuing.")
-            continue
-
-        return {
-            "user_answer": answer,
+            **state,
+            "quiz_question": question,
+            "quiz_completed": False,
             "error": "",
         }
 
-def grade_answer(state: HealthBotState) -> HealthBotState:
-    """Grade the user's answer using only the generated summary."""
+    except Exception as exc:
+        logger.exception(
+            "Quiz generation node failed."
+        )
+
+        return create_error_state(
+            f"Quiz generation failed: {exc}"
+        )
+
+
+def grade_answer_node(
+    state: HealthBotState,
+) -> HealthBotState:
+    """Grade the user's answer against the generated summary."""
 
     topic = state.get("topic", "")
     summary = state.get("summary", "")
     quiz_question = state.get("quiz_question", "")
     user_answer = state.get("user_answer", "")
 
-    if not is_valid_text(topic):
-        return {
-            "grade": "",
-            "feedback": "",
-            "error": "Health topic is missing.",
-        }
+    if not topic:
+        return create_error_state(
+            "Health topic is required for grading."
+        )
 
-    if not is_valid_text(summary):
-        return {
-            "grade": "",
-            "feedback": "",
-            "error": "Summary is missing.",
-        }
+    if not summary:
+        return create_error_state(
+            "Cannot grade an answer without a summary."
+        )
 
-    if not is_valid_text(quiz_question):
-        return {
-            "grade": "",
-            "feedback": "",
-            "error": "Quiz question is missing.",
-        }
+    if not quiz_question:
+        return create_error_state(
+            "Cannot grade an answer without a quiz question."
+        )
 
-    if not is_valid_text(user_answer):
-        return {
-            "grade": "",
-            "feedback": "",
-            "error": "User answer is missing.",
-        }
-
-    prompt = format_prompt(
-        GRADING_PROMPT,
-        topic=topic,
-        summary=summary,
-        quiz_question=quiz_question,
-        user_answer=user_answer,
-    )
+    if not user_answer:
+        return create_error_state(
+            "User answer cannot be empty."
+        )
 
     try:
-        grading_result = gemini_service.generate_with_gemini(prompt)
+        prompt = format_prompt(
+            GRADING_PROMPT,
+            topic=topic,
+            summary=summary,
+            quiz_question=quiz_question,
+            user_answer=user_answer,
+        )
 
-        if not is_valid_text(grading_result):
-            return {
-                "grade": "",
-                "feedback": "",
-                "error": "Gemini returned an empty grading response.",
-            }
+        feedback = gemini_service.generate_with_gemini(
+            prompt
+        )
 
-        grading_result = grading_result.strip()
-        grade = extract_grade(grading_result)
+        grade = extract_grade(feedback)
 
         if not grade:
-            return {
-                "grade": "",
-                "feedback": grading_result,
-                "error": "Gemini returned an invalid grade format.",
-            }
+            return create_error_state(
+                "Unable to determine a valid quiz grade."
+            )
 
         return {
+            **state,
             "grade": grade,
-            "feedback": grading_result,
+            "feedback": feedback,
             "quiz_completed": True,
             "error": "",
         }
 
-    except Exception as e:
-        return {
-            "grade": "",
-            "feedback": "",
-            "quiz_completed": False,
-            "error": f"Answer grading failed: {e}",
-        }
+    except Exception as exc:
+        logger.exception(
+            "Answer grading node failed."
+        )
 
-def display_feedback(state: HealthBotState) -> HealthBotState:
-    """Display the grading result and feedback to the user."""
+        return create_error_state(
+            f"Answer grading failed: {exc}"
+        )
 
-    grade = state.get("grade", "")
-    feedback = state.get("feedback", "")
-    error = state.get("error", "")
 
-    if error:
-        print(f"\nUnable to evaluate your answer: {error}")
-        return state
+def session_decision_node(
+    state: HealthBotState,
+) -> HealthBotState:
+    """Store the user's decision about continuing the session."""
 
-    if not is_valid_text(feedback):
-        print("\nNo feedback was generated.")
-        return {
-            "error": "Feedback is unavailable.",
-        }
+    continue_session = state.get(
+        "continue_session",
+        False,
+    )
 
-    print("\n" + "=" * 50)
-    print("QUIZ RESULT")
-    print("=" * 50)
-
-    if grade:
-        print(f"\nGrade: {grade}")
-
-    print("\nFeedback:")
-    print(feedback)
-
-    print("=" * 50)
-
-    return state
-
-def session_decision(state: HealthBotState) -> HealthBotState:
-    """Ask whether the user wants to learn about another topic."""
-
-    while True:
-        choice = input(
-            "\nWould you like to learn about another health topic? "
-            "(yes/no)\n> "
-        ).strip().lower()
-
-        if choice in {"yes", "y"}:
-            return {
-                "continue_session": True,
-                "error": "",
-            }
-
-        if choice in {"no", "n"}:
-            return {
-                "continue_session": False,
-                "error": "",
-            }
-
-        print("Please enter 'yes' or 'no'.")
-
-def reset_state_node(state: HealthBotState) -> HealthBotState:
-    """Reset session state before starting a new topic."""
-
-    return reset_state()
-
+    return {
+        **state,
+        "continue_session": continue_session,
+    }

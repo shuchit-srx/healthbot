@@ -4,9 +4,11 @@ from app.services.gemini import GeminiService
 from app.services.tavily import TavilyService
 
 
+@pytest.mark.integration
 def test_gemini_api():
     try:
         gemini_service = GeminiService()
+
         response = gemini_service.llm.invoke(
             "Reply with: Gemini API working"
         )
@@ -17,9 +19,11 @@ def test_gemini_api():
         pytest.fail(f"Gemini API failed: {e}")
 
 
+@pytest.mark.integration
 def test_tavily_api():
     try:
         tavily_service = TavilyService()
+
         response = tavily_service.tool.invoke(
             {"query": "diabetes medical information"}
         )

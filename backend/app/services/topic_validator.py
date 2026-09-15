@@ -3,40 +3,47 @@ import re
 from rapidfuzz import fuzz, process
 
 from app.core.health_vocabulary import HEALTH_TOPICS
+from app.core.logging import get_logger
 from app.core.prompts import TOPIC_CLASSIFICATION_PROMPT
 from app.services.gemini import GeminiService
 from app.utils.helpers import format_prompt, is_valid_text
 
 
+logger = get_logger(__name__)
+
 FUZZY_THRESHOLD = 85
 
 
 class TopicValidator:
+    """Validate and normalize user-provided health topics."""
 
     def __init__(self):
         self.gemini_service = GeminiService()
 
     def normalize_topic(self, topic: str) -> str:
-        """Normalize user input for topic comparison."""
+        """Normalize topic text for comparison."""
 
-        if not topic:
+        if not is_valid_text(topic):
             return ""
 
-        topic = topic.lower().strip()
-        topic = re.sub(r"[-_/]", " ", topic)
-        topic = re.sub(r"\s+", " ", topic)
+        normalized = topic.lower().strip()
+        normalized = re.sub(r"[-_/]", " ", normalized)
+        normalized = re.sub(r"\s+", " ", normalized)
 
-        return topic
+        return normalized
 
     def exact_health_match(self, topic: str) -> bool:
-        """Check for an exact match in the local health vocabulary."""
+        """Check whether a topic exactly matches the health vocabulary."""
 
         normalized_topic = self.normalize_topic(topic)
 
         return normalized_topic in HEALTH_TOPICS
 
-    def fuzzy_health_match(self, topic: str):
-        """Find a close match for spelling mistakes and minor variations."""
+    def fuzzy_health_match(
+        self,
+        topic: str,
+    ) -> tuple[str | None, float]:
+        """Find a close health-topic match."""
 
         normalized_topic = self.normalize_topic(topic)
 
@@ -59,8 +66,11 @@ class TopicValidator:
 
         return None, score
 
-    def classify_with_gemini(self, topic: str):
-        """Use Gemini as the final validation and correction fallback."""
+    def classify_with_gemini(
+        self,
+        topic: str,
+    ) -> tuple[bool, str]:
+        """Use Gemini as a fallback health-topic classifier."""
 
         if not is_valid_text(topic):
             return False, ""
@@ -71,7 +81,9 @@ class TopicValidator:
         )
 
         try:
-            response = self.gemini_service.generate_with_gemini(prompt)
+            response = self.gemini_service.generate_with_gemini(
+                prompt
+            )
 
             classification_match = re.search(
                 r"Classification:\s*(HEALTH|NON_HEALTH)",
@@ -86,9 +98,15 @@ class TopicValidator:
             )
 
             if not classification_match:
+                logger.warning(
+                    "Gemini returned an invalid classification response."
+                )
                 return False, ""
 
             classification = classification_match.group(1).upper()
+
+            if classification != "HEALTH":
+                return False, ""
 
             corrected_topic = ""
 
@@ -97,22 +115,28 @@ class TopicValidator:
                     corrected_match.group(1)
                 )
 
-            if classification == "HEALTH":
-                return True, corrected_topic
+            if corrected_topic == "none":
+                corrected_topic = ""
 
-            return False, ""
+            return bool(corrected_topic), corrected_topic
 
         except Exception:
+            logger.exception(
+                "Gemini topic classification failed."
+            )
             return False, ""
 
-    def validate_health_topic(self, topic: str) -> tuple[bool, str]:
+    def validate_health_topic(
+        self,
+        topic: str,
+    ) -> tuple[bool, str]:
         """
-        Validate and normalize a user-provided health topic.
+        Validate and normalize a health topic.
 
         Validation order:
         1. Exact match
         2. Fuzzy match
-        3. Gemini classification and spelling correction
+        3. Gemini classification
         """
 
         if not is_valid_text(topic):
@@ -122,17 +146,31 @@ class TopicValidator:
 
         # 1. Exact match
         if self.exact_health_match(normalized_topic):
+            logger.debug(
+                "Topic validated using exact match: %s",
+                normalized_topic,
+            )
             return True, normalized_topic
 
         # 2. Fuzzy match
-        fuzzy_match, _ = self.fuzzy_health_match(
+        fuzzy_match, fuzzy_score = self.fuzzy_health_match(
             normalized_topic
         )
 
         if fuzzy_match is not None:
+            logger.debug(
+                "Topic validated using fuzzy match: %s (%.1f)",
+                fuzzy_match,
+                fuzzy_score,
+            )
             return True, fuzzy_match
 
         # 3. Gemini fallback
+        logger.debug(
+            "Using Gemini fallback for topic: %s",
+            normalized_topic,
+        )
+
         is_health_topic, corrected_topic = (
             self.classify_with_gemini(normalized_topic)
         )

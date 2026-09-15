@@ -3,11 +3,16 @@ from typing import Any
 from langchain_tavily import TavilySearch
 
 from app.core.config import settings
+from app.core.logging import get_logger
 from app.utils.helpers import is_valid_text
 from app.utils.retry import retry_operation
 
 
+logger = get_logger(__name__)
+
+
 class TavilyService:
+    """Service responsible for retrieving medical information from Tavily."""
 
     def __init__(self):
         self.tool = TavilySearch(
@@ -19,12 +24,17 @@ class TavilyService:
         self,
         topic: str,
     ) -> list[dict[str, Any]]:
-        """Retrieve and validate medical information from Tavily."""
+        """Search and validate medical information."""
 
         if not is_valid_text(topic):
             raise ValueError("Health topic cannot be empty.")
 
-        def perform_search():
+        def perform_search() -> list[dict[str, Any]]:
+            logger.debug(
+                "Searching Tavily for medical topic: %s",
+                topic,
+            )
+
             response = self.tool.invoke(
                 {
                     "query": (
@@ -71,6 +81,24 @@ class TavilyService:
                     "Tavily returned no usable medical information."
                 )
 
+            logger.debug(
+                "Tavily returned %d usable results.",
+                len(valid_results),
+            )
+
             return valid_results
 
-        return retry_operation(perform_search)
+        try:
+            return retry_operation(
+                perform_search,
+                max_attempts=3,
+                delay=2,
+            )
+
+        except Exception as exc:
+            logger.exception(
+                "Tavily request failed after retries."
+            )
+            raise RuntimeError(
+                f"Tavily service failed: {exc}"
+            ) from exc
