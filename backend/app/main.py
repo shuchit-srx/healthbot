@@ -1,108 +1,68 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.routes.education import router as education_router
-from app.api.routes.grading import router as grading_router
-from app.api.routes.quiz import router as quiz_router
-from app.api.routes.session import router as session_router
-from app.api.routes.topic import router as topic_router
+from app.api.routes import grading, health, quiz, session, topic, education
 from app.core.config import settings
-from app.core.logging import get_logger
-
-
-logger = get_logger(__name__)
-
 
 app = FastAPI(
-    title="HealthBot API",
-    version="1.0.0",
+    title=settings.app_name,
+    version=settings.app_version,
+    docs_url="/docs",
+    redoc_url="/redoc",
 )
-
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.allowed_origins,
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST"],
-    allow_headers=[
-        "Content-Type",
-        "Authorization",
-    ],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 
 @app.middleware("http")
-async def security_headers(
-    request: Request,
-    call_next,
-):
-    try:
-        response = await call_next(request)
-    except Exception:
-        logger.exception(
-            "Unhandled application error."
+async def security_headers(request, call_next):
+    response = await call_next(request)
+
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+
+    if settings.environment.lower() == "production":
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=31536000; includeSubDomains"
         )
-
-        response = JSONResponse(
-            status_code=500,
-            content={
-                "detail": (
-                    "An internal error occurred. "
-                    "Please try again."
-                )
-            },
-        )
-
-    response.headers[
-        "X-Content-Type-Options"
-    ] = "nosniff"
-
-    response.headers[
-        "X-Frame-Options"
-    ] = "DENY"
-
-    response.headers[
-        "Referrer-Policy"
-    ] = "strict-origin-when-cross-origin"
 
     return response
 
 
 @app.get("/")
-def root():
-    return {
-        "service": "HealthBot",
-        "version": "1.0.0",
-        "status": "running",
-    }
+def root() -> JSONResponse:
+    return JSONResponse(
+        content={
+            "service": settings.app_name,
+            "version": settings.app_version,
+            "status": "running",
+        }
+    )
 
 
 @app.get("/health")
-def health_check():
-    return {
-        "status": "healthy",
-        "service": "HealthBot",
-        "version": "1.0.0",
-    }
+def health_check() -> JSONResponse:
+    return JSONResponse(
+        content={
+            "status": "healthy",
+            "service": settings.app_name,
+            "version": settings.app_version,
+        }
+    )
 
 
-app.include_router(
-    topic_router,
-)
-
-app.include_router(
-    education_router,
-)
-
-app.include_router(
-    quiz_router,
-)
-
-app.include_router(
-    grading_router,
-)
-
-app.include_router(
-    session_router,
-)
+app.include_router(health.router)
+app.include_router(topic.router)
+app.include_router(education.router)
+app.include_router(quiz.router)
+app.include_router(grading.router)
+app.include_router(session.router)

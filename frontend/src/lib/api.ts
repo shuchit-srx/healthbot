@@ -2,7 +2,6 @@ const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   "http://localhost:8000";
 
-
 export class ApiError extends Error {
   status: number;
 
@@ -11,12 +10,10 @@ export class ApiError extends Error {
     status: number,
   ) {
     super(message);
-
     this.name = "ApiError";
     this.status = status;
   }
 }
-
 
 async function request<T>(
   endpoint: string,
@@ -27,7 +24,6 @@ async function request<T>(
       `${API_URL}${endpoint}`,
       {
         ...options,
-
         headers: {
           "Content-Type": "application/json",
           ...(options?.headers || {}),
@@ -35,13 +31,11 @@ async function request<T>(
       },
     );
 
-    let data: unknown;
+    let data: unknown = null;
 
     try {
       data = await response.json();
-    } catch {
-      data = null;
-    }
+    } catch {}
 
     if (!response.ok) {
       let message =
@@ -82,30 +76,30 @@ async function request<T>(
   }
 }
 
-
 export interface TopicValidationResponse {
   valid: boolean;
   topic?: string;
   message?: string;
 }
 
-
 export interface SummaryResponse {
   topic: string;
   summary: string;
+  sources?: unknown[];
 }
-
 
 export interface QuizResponse {
   question: string;
 }
-
 
 export interface GradeResponse {
   grade: string;
   feedback: string;
 }
 
+export interface SessionResponse {
+  continue_session: boolean;
+}
 
 export async function validateTopic(
   topic: string,
@@ -114,14 +108,12 @@ export async function validateTopic(
     "/api/topics/validate",
     {
       method: "POST",
-
       body: JSON.stringify({
         topic: topic.trim(),
       }),
     },
   );
 }
-
 
 export async function generateSummary(
   topic: string,
@@ -130,7 +122,6 @@ export async function generateSummary(
     "/api/education/summary",
     {
       method: "POST",
-
       body: JSON.stringify({
         topic: topic.trim(),
       }),
@@ -138,6 +129,127 @@ export async function generateSummary(
   );
 }
 
+export async function streamSummary(
+  topic: string,
+  onChunk: (
+    chunk: string,
+  ) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  let response: Response;
+
+  try {
+    response = await fetch(
+      `${API_URL}/api/education/summary/stream`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          topic: topic.trim(),
+        }),
+        signal,
+      },
+    );
+  } catch (error) {
+    if (
+      error instanceof DOMException &&
+      error.name === "AbortError"
+    ) {
+      throw error;
+    }
+
+    throw new ApiError(
+      "Unable to connect to HealthBot. Please check that the backend is running.",
+      0,
+    );
+  }
+
+  if (!response.ok) {
+    throw new ApiError(
+      "Unable to generate the health summary.",
+      response.status,
+    );
+  }
+
+  if (!response.body) {
+    throw new ApiError(
+      "The server did not provide a streaming response.",
+      0,
+    );
+  }
+
+  const reader =
+    response.body.getReader();
+
+  const decoder =
+    new TextDecoder();
+
+  let buffer = "";
+
+  try {
+    while (true) {
+      const {
+        value,
+        done,
+      } = await reader.read();
+
+      if (done) {
+        break;
+      }
+
+      buffer += decoder.decode(
+        value,
+        {
+          stream: true,
+        },
+      );
+
+      const lines =
+        buffer.split("\n");
+
+      buffer =
+        lines.pop() || "";
+
+      for (const line of lines) {
+        if (!line.trim()) {
+          continue;
+        }
+
+        const event =
+          JSON.parse(line);
+
+        if (
+          event.type === "chunk" &&
+          typeof event.content === "string"
+        ) {
+          onChunk(
+            event.content,
+          );
+        }
+
+        if (
+          event.type === "error"
+        ) {
+          throw new ApiError(
+            event.message ||
+              "Unable to complete the response. Please try again.",
+            500,
+          );
+        }
+
+        if (
+          event.type === "done"
+        ) {
+          return;
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
 
 export async function generateQuiz(
   summary: string,
@@ -152,24 +264,46 @@ export async function generateQuiz(
   );
 }
 
-
 export async function gradeQuiz(
   topic: string,
   summary: string,
   question: string,
   answer: string,
 ): Promise<GradeResponse> {
-  const params = new URLSearchParams({
-    topic,
-    summary,
-    question,
-    answer,
-  });
+  const params =
+    new URLSearchParams({
+      topic,
+      summary,
+      quiz_question:
+        question,
+    });
 
   return request<GradeResponse>(
     `/api/quiz/grade?${params.toString()}`,
     {
       method: "POST",
+      body: JSON.stringify({
+        user_answer: answer,
+      }),
     },
+  );
+}
+
+export async function decideSession(
+  continueSession: boolean,
+): Promise<SessionResponse> {
+  return request<{
+    data: SessionResponse;
+  }>(
+    "/api/session/decision",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        continue_session:
+          continueSession,
+      }),
+    },
+  ).then(
+    (response) => response.data,
   );
 }

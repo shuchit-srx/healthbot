@@ -2,138 +2,73 @@
 
 import {
   FormEvent,
-  useState,
 } from "react";
 
-
-interface TopicInputProps {
+type TopicInputProps = {
+  value: string;
+  onChange: (
+    value: string,
+  ) => void;
   onSubmit: (
-    topic: string,
-  ) => Promise<void>;
-
+    event: FormEvent,
+  ) => void;
   disabled?: boolean;
-}
-
+};
 
 export default function TopicInput({
+  value,
+  onChange,
   onSubmit,
   disabled = false,
 }: TopicInputProps) {
-  const [topic, setTopic] =
-    useState("");
-
-
-  const handleSubmit = async (
-    event: FormEvent<HTMLFormElement>,
-  ) => {
-    event.preventDefault();
-
-    const value = topic.trim();
-
-    if (!value || disabled) {
-      return;
-    }
-
-    await onSubmit(value);
-
-    setTopic("");
-  };
-
-
   return (
     <form
-      onSubmit={handleSubmit}
+      onSubmit={onSubmit}
       className="w-full"
     >
-      <div
-        className="
-          flex items-end gap-2
-          rounded-3xl
-          border
-          p-2
-          shadow-sm
-          transition
-          focus-within:shadow-md
-        "
-        style={{
-          borderColor: "var(--border)",
-          background: "var(--card)",
-        }}
+      <label
+        htmlFor="health-topic"
+        className="sr-only"
       >
-        <textarea
-          value={topic}
-          onChange={(event) =>
-            setTopic(event.target.value)
-          }
-          onKeyDown={(event) => {
-            if (
-              event.key === "Enter" &&
-              !event.shiftKey
-            ) {
-              event.preventDefault();
+        Health topic
+      </label>
 
-              event.currentTarget.form?.requestSubmit();
-            }
-          }}
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <textarea
+          id="health-topic"
+          value={value}
+          onChange={(event) =>
+            onChange(
+              event.target.value,
+            )
+          }
           disabled={disabled}
           maxLength={200}
-          rows={1}
+          rows={2}
           placeholder="Ask about a health topic..."
-          aria-label="Health topic"
-          className="
-            max-h-32
-            min-h-11
-            flex-1
-            resize-none
-            bg-transparent
-            px-4 py-3
-            text-sm
-            outline-none
-          "
-          style={{
-            color: "var(--foreground)",
-          }}
+          aria-describedby="topic-help"
+          className="min-h-14 flex-1 resize-none rounded-xl border p-3"
         />
 
         <button
           type="submit"
           disabled={
             disabled ||
-            !topic.trim()
+            !value.trim()
           }
-          aria-label="Send message"
-          className="
-            flex h-11 w-11
-            shrink-0
-            items-center justify-center
-            rounded-full
-            text-lg
-            font-semibold
-            transition
-            hover:scale-105
-          "
-          style={{
-            background: "var(--primary)",
-            color: "var(--primary-foreground)",
-          }}
+          className="rounded-xl border px-5 py-3 sm:self-end"
         >
-          ↑
+          Ask HealthBot
         </button>
       </div>
 
       <p
-        className="
-          mt-2
-          px-3
-          text-xs
-        "
-        style={{
-          color:
-            "var(--muted-foreground)",
-        }}
+        id="topic-help"
+        className="mt-2 text-xs opacity-60"
       >
-        HealthBot provides educational information,
-        not medical diagnosis.
+        Enter a health topic for
+        patient-friendly educational
+        information.
       </p>
     </form>
   );

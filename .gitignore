@@ -1,49 +1,25 @@
-# Environment & secrets
-.config
+backend/.venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/.pytest_cache/
+backend/.mypy_cache/
+backend/.ruff_cache/
+backend/*.pyc
+backend/*.pyo
+backend/*.pyd
+
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/coverage/
+
 .env
 .env.*
-*.env
+backend/config.env
 
-# Virtual environments
-.venv/
-venv/
-env/
-
-# Python cache
-__pycache__/
-*.py[cod]
-*$py.class
-
-# Testing
-.pytest_cache/
-.coverage
-.coverage.*
-htmlcov/
-
-# Jupyter
-.ipynb_checkpoints/
-
-# IDE
-.vscode/
-.idea/
-
-# macOS
+*.log
 .DS_Store
 
-# Logs
-*.log
-logs/
+docker-compose.override.yml
 
-# Temporary files
-*.tmp
-*.temp
-*.bak
-
-
-.venv/
-.config
-__pycache__/
-*.py[cod]
-.pytest_cache/
-.env
-.env.*
+README.md

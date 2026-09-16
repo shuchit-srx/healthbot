@@ -1,151 +1,89 @@
-from itertools import cycle
-from typing import Iterator
+from collections.abc import Iterator
+from typing import Any
 
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from app.core.config import settings
-from app.core.logging import get_logger
 from app.utils.retry import retry_operation
 
 
-logger = get_logger(__name__)
-
-
 class GeminiService:
-    """Service for interacting with Google Gemini."""
-
     def __init__(self) -> None:
-        if not settings.gemini_api_keys:
-            raise ValueError(
-                "No Gemini API keys configured."
-            )
+        self.api_keys = settings.gemini_keys
 
-        # Keep a normal list for key rotation.
-        self.api_keys = list(
-            settings.gemini_api_keys
-        )
+        if not self.api_keys:
+            raise ValueError("No Gemini API keys configured.")
 
-        self._key_index = 0
+        self.current_key_index = 0
+        self.llm = self._create_llm(self.api_keys[self.current_key_index])
 
-        self.llm = self._create_llm()
-
-    def _create_llm(self):
-        """Create a Gemini client using the current API key."""
-
-        api_key = self.api_keys[
-            self._key_index
-            % len(self.api_keys)
-        ]
-
+    def _create_llm(self, api_key: str) -> ChatGoogleGenerativeAI:
         return ChatGoogleGenerativeAI(
             model="gemini-3.5-flash",
-            temperature=0,
             google_api_key=api_key,
+            temperature=0.2,
         )
 
-    def _switch_to_next_key(self):
-        """Switch Gemini client to the next configured API key."""
-
-        if len(self.api_keys) <= 1:
+    def _switch_key(self) -> None:
+        if self.current_key_index + 1 >= len(self.api_keys):
             return
 
-        self._key_index = (
-            self._key_index + 1
-        ) % len(self.api_keys)
-
-        self.llm = self._create_llm()
-
-        logger.warning(
-            "Switched to the next Gemini API key."
+        self.current_key_index += 1
+        self.llm = self._create_llm(
+            self.api_keys[self.current_key_index]
         )
 
     @staticmethod
-    def _extract_text(content) -> str:
-        """
-        Convert Gemini/LangChain response content
-        into plain text.
-        """
+    def _extract_text(response: Any) -> str:
+        if response is None:
+            return ""
+
+        if isinstance(response, str):
+            return response.strip()
+
+        if isinstance(response, list):
+            parts: list[str] = []
+
+            for item in response:
+                if isinstance(item, str):
+                    parts.append(item)
+                elif isinstance(item, dict):
+                    text = item.get("text")
+                    if isinstance(text, str):
+                        parts.append(text)
+
+            return "".join(parts).strip()
+
+        content = getattr(response, "content", None)
 
         if isinstance(content, str):
             return content.strip()
 
         if isinstance(content, list):
-            text_parts = []
+            return GeminiService._extract_text(content)
 
-            for item in content:
-                if isinstance(item, dict):
-                    if item.get("type") == "text":
-                        text = item.get(
-                            "text",
-                            "",
-                        )
+        text = getattr(response, "text", None)
 
-                        if isinstance(text, str):
-                            text_parts.append(text)
+        if isinstance(text, str):
+            return text.strip()
 
-                elif isinstance(item, str):
-                    text_parts.append(item)
+        return ""
 
-            return "\n".join(
-                part.strip()
-                for part in text_parts
-                if part.strip()
-            )
+    def generate_with_gemini(self, prompt: str) -> str:
+        if not isinstance(prompt, str) or not prompt.strip():
+            raise ValueError("Prompt cannot be empty.")
 
-        return str(content).strip()
+        last_error: Exception | None = None
 
-    def generate_with_gemini(
-        self,
-        prompt: str,
-    ) -> str:
-        """
-        Generate a complete plain-text response.
-
-        Each configured API key gets a chance to
-        serve the request. Temporary failures are
-        retried before moving to the next key.
-        """
-
-        if not prompt or not prompt.strip():
-            raise ValueError(
-                "Prompt cannot be empty."
-            )
-
-        total_keys = len(
-            self.api_keys
-        )
-
-        last_error = None
-
-        for key_attempt in range(
-            total_keys
-        ):
-            def operation():
-                return self.llm.invoke(
-                    prompt
-                )
-
+        for _ in range(len(self.api_keys)):
             try:
                 response = retry_operation(
-                    operation,
+                    lambda: self.llm.invoke(prompt),
                     max_attempts=3,
                     delay=2,
                 )
 
-                content = getattr(
-                    response,
-                    "content",
-                    None,
-                )
-
-                if content is None:
-                    raise RuntimeError(
-                        "Gemini returned an invalid response."
-                    )
-
-                text = self._extract_text(
-                    content
-                )
+                text = self._extract_text(response)
 
                 if not text:
                     raise RuntimeError(
@@ -154,72 +92,48 @@ class GeminiService:
 
                 return text
 
-            except Exception as exc:
-                last_error = exc
+            except Exception as error:
+                last_error = error
 
-                logger.warning(
-                    "Gemini request failed with "
-                    "API key %d/%d.",
-                    key_attempt + 1,
-                    total_keys,
-                )
-
-                if (
-                    key_attempt
-                    < total_keys - 1
-                ):
-                    self._switch_to_next_key()
-
-        logger.exception(
-            "Gemini service failed with all configured API keys."
-        )
+                if self.current_key_index + 1 < len(self.api_keys):
+                    self._switch_key()
+                else:
+                    break
 
         raise RuntimeError(
-            f"Gemini service failed: "
-            f"all {total_keys} API keys failed: "
-            f"{last_error}"
+            f"Gemini service failed: all {len(self.api_keys)} API keys exhausted."
         ) from last_error
 
-    def stream_with_gemini(
-        self,
-        prompt: str,
-    ) -> Iterator[str]:
-        """
-        Stream Gemini response chunks.
+    def stream_with_gemini(self, prompt: str) -> Iterator[str]:
+        if not isinstance(prompt, str) or not prompt.strip():
+            raise ValueError("Prompt cannot be empty.")
 
-        Each yielded value contains plain text.
-        """
+        last_error: Exception | None = None
 
-        if not prompt or not prompt.strip():
-            raise ValueError(
-                "Prompt cannot be empty."
-            )
-
-        try:
-            for chunk in self.llm.stream(
-                prompt
-            ):
-                content = getattr(
-                    chunk,
-                    "content",
-                    None,
+        for _ in range(len(self.api_keys)):
+            try:
+                chunks = retry_operation(
+                    lambda: self.llm.stream(prompt),
+                    max_attempts=3,
+                    delay=2,
                 )
 
-                if content is None:
-                    continue
+                for chunk in chunks:
+                    text = self._extract_text(chunk)
 
-                text = self._extract_text(
-                    content
-                )
+                    if text:
+                        yield text
 
-                if text:
-                    yield text
+                return
 
-        except Exception as exc:
-            logger.exception(
-                "Gemini streaming request failed."
-            )
+            except Exception as error:
+                last_error = error
 
-            raise RuntimeError(
-                f"Gemini streaming failed: {exc}"
-            ) from exc
+                if self.current_key_index + 1 < len(self.api_keys):
+                    self._switch_key()
+                else:
+                    break
+
+        raise RuntimeError(
+            f"Gemini service failed: all {len(self.api_keys)} API keys exhausted."
+        ) from last_error
