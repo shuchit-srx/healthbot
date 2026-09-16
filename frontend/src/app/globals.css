@@ -1,15 +1,49 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f7f9fc;
-  --foreground: #172033;
-  --muted: #667085;
-  --border: #e4e8ef;
-  --surface: #ffffff;
-  --primary: #2563eb;
-  --primary-soft: #eff6ff;
-  --health: #0f766e;
-  --health-soft: #ecfdf5;
+  --background: #f7faf9;
+  --foreground: #17211f;
+
+  --card: #ffffff;
+  --card-foreground: #17211f;
+
+  --muted: #eef4f2;
+  --muted-foreground: #64736f;
+
+  --primary: #147d6f;
+  --primary-hover: #10685d;
+  --primary-foreground: #ffffff;
+
+  --border: #dce7e3;
+
+  --user-message: #dff3ee;
+  --assistant-message: #ffffff;
+
+  --danger: #b42318;
+  --danger-background: #fef3f2;
+}
+
+.dark {
+  --background: #101716;
+  --foreground: #edf7f4;
+
+  --card: #18201f;
+  --card-foreground: #edf7f4;
+
+  --muted: #202b29;
+  --muted-foreground: #9aaca7;
+
+  --primary: #42b8a7;
+  --primary-hover: #59c8b8;
+  --primary-foreground: #081311;
+
+  --border: #2c3b38;
+
+  --user-message: #174b43;
+  --assistant-message: #18201f;
+
+  --danger: #f97066;
+  --danger-background: #3a1d1b;
 }
 
 * {
@@ -22,8 +56,11 @@ html {
 
 body {
   margin: 0;
+  min-height: 100vh;
+
   background: var(--background);
   color: var(--foreground);
+
   font-family:
     Arial,
     Helvetica,
@@ -40,54 +77,12 @@ button {
   cursor: pointer;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 ::selection {
-  background: #dbeafe;
-  color: #172033;
-}
-
-::-webkit-scrollbar {
-  width: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 999px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
-}
-
-.health-gradient {
-  background:
-    radial-gradient(
-      circle at 50% 0%,
-      rgba(37, 99, 235, 0.08),
-      transparent 35%
-    ),
-    radial-gradient(
-      circle at 80% 20%,
-      rgba(20, 184, 166, 0.06),
-      transparent 30%
-    );
-}
-
-.animate-in {
-  animation: fade-in 0.35s ease-out;
-}
-
-@keyframes fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  background: var(--primary);
+  color: var(--primary-foreground);
 }

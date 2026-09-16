@@ -1,163 +1,175 @@
-import type {
-  TopicValidationResponse,
-  SummaryResponse,
-  QuizResponse,
-  GradeResponse,
-  SessionResponse,
-} from "@/src/types/healthbot";
-
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   "http://localhost:8000";
 
-async function handleResponse<T>(
-  response: Response
+
+export class ApiError extends Error {
+  status: number;
+
+  constructor(
+    message: string,
+    status: number,
+  ) {
+    super(message);
+
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
+
+async function request<T>(
+  endpoint: string,
+  options?: RequestInit,
 ): Promise<T> {
-  if (!response.ok) {
-    let message = "Something went wrong.";
+  try {
+    const response = await fetch(
+      `${API_URL}${endpoint}`,
+      {
+        ...options,
+
+        headers: {
+          "Content-Type": "application/json",
+          ...(options?.headers || {}),
+        },
+      },
+    );
+
+    let data: unknown;
 
     try {
-      const data = await response.json();
-
-      if (data?.detail) {
-        message =
-          typeof data.detail === "string"
-            ? data.detail
-            : JSON.stringify(data.detail);
-      }
+      data = await response.json();
     } catch {
-      // Ignore invalid error responses.
+      data = null;
     }
 
-    throw new Error(message);
+    if (!response.ok) {
+      let message =
+        "Something went wrong. Please try again.";
+
+      if (
+        data &&
+        typeof data === "object" &&
+        "detail" in data
+      ) {
+        const detail = (
+          data as {
+            detail?: unknown;
+          }
+        ).detail;
+
+        if (typeof detail === "string") {
+          message = detail;
+        }
+      }
+
+      throw new ApiError(
+        message,
+        response.status,
+      );
+    }
+
+    return data as T;
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+
+    throw new ApiError(
+      "Unable to connect to HealthBot. Please check that the backend is running.",
+      0,
+    );
   }
-
-  return response.json();
 }
 
-/**
- * Validate a health topic.
- */
+
+export interface TopicValidationResponse {
+  valid: boolean;
+  topic?: string;
+  message?: string;
+}
+
+
+export interface SummaryResponse {
+  topic: string;
+  summary: string;
+}
+
+
+export interface QuizResponse {
+  question: string;
+}
+
+
+export interface GradeResponse {
+  grade: string;
+  feedback: string;
+}
+
+
 export async function validateTopic(
-  topic: string
+  topic: string,
 ): Promise<TopicValidationResponse> {
-  const response = await fetch(
-    `${API_URL}/api/topics/validate`,
+  return request<TopicValidationResponse>(
+    "/api/topics/validate",
     {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        topic,
-      }),
-    }
-  );
 
-  return handleResponse<TopicValidationResponse>(
-    response
+      body: JSON.stringify({
+        topic: topic.trim(),
+      }),
+    },
   );
 }
 
-/**
- * Generate a patient-friendly health summary.
- */
+
 export async function generateSummary(
-  topic: string
+  topic: string,
 ): Promise<SummaryResponse> {
-  const response = await fetch(
-    `${API_URL}/api/education/summary`,
+  return request<SummaryResponse>(
+    "/api/education/summary",
     {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+
       body: JSON.stringify({
-        topic,
+        topic: topic.trim(),
       }),
-    }
-  );
-
-  return handleResponse<SummaryResponse>(
-    response
+    },
   );
 }
 
-/**
- * Generate a comprehension quiz from the summary.
- */
-export async function generateQuiz(
-  summary: string
-): Promise<QuizResponse> {
-  const params = new URLSearchParams({
-    summary,
-  });
 
-  const response = await fetch(
-    `${API_URL}/api/quiz/generate?${params.toString()}`,
+export async function generateQuiz(
+  summary: string,
+): Promise<QuizResponse> {
+  return request<QuizResponse>(
+    `/api/quiz/generate?summary=${encodeURIComponent(
+      summary,
+    )}`,
     {
       method: "POST",
-    }
-  );
-
-  return handleResponse<QuizResponse>(
-    response
+    },
   );
 }
 
-/**
- * Grade the user's quiz answer.
- */
-export async function gradeAnswer(
+
+export async function gradeQuiz(
   topic: string,
   summary: string,
-  quizQuestion: string,
-  userAnswer: string
+  question: string,
+  answer: string,
 ): Promise<GradeResponse> {
   const params = new URLSearchParams({
     topic,
     summary,
-    quiz_question: quizQuestion,
+    question,
+    answer,
   });
 
-  const response = await fetch(
-    `${API_URL}/api/quiz/grade?${params.toString()}`,
+  return request<GradeResponse>(
+    `/api/quiz/grade?${params.toString()}`,
     {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        user_answer: userAnswer,
-      }),
-    }
-  );
-
-  return handleResponse<GradeResponse>(
-    response
-  );
-}
-
-/**
- * Decide whether to continue or finish the session.
- */
-export async function decideSession(
-  continueSession: boolean
-): Promise<SessionResponse> {
-  const response = await fetch(
-    `${API_URL}/api/session/decision`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        continue_session: continueSession,
-      }),
-    }
-  );
-
-  return handleResponse<SessionResponse>(
-    response
+    },
   );
 }

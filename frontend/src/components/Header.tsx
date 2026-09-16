@@ -1,64 +1,121 @@
 "use client";
 
-import {
-  HeartPulse,
-  Menu,
-  Plus,
-  ShieldCheck,
-} from "lucide-react";
+import { useState } from "react";
 
-interface HeaderProps {
-  onNewTopic?: () => void;
-}
+export default function Header() {
+  const [darkMode, setDarkMode] =
+    useState(false);
 
-export default function Header({
-  onNewTopic,
-}: HeaderProps) {
+  const toggleTheme = () => {
+    const nextMode = !darkMode;
+
+    setDarkMode(nextMode);
+
+    document.documentElement.classList.toggle(
+      "dark",
+      nextMode,
+    );
+  };
+
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-200/70 bg-white/80 backdrop-blur-xl">
-      <div className="flex h-16 items-center justify-between px-4 sm:px-6">
+    <header
+      className="
+        sticky top-0 z-50
+        border-b
+        backdrop-blur-xl
+      "
+      style={{
+        background:
+          "color-mix(in srgb, var(--background) 88%, transparent)",
+        borderColor: "var(--border)",
+      }}
+    >
+      <div
+        className="
+          mx-auto flex h-16
+          max-w-7xl
+          items-center justify-between
+          px-4 sm:px-6 lg:px-8
+        "
+      >
+        {/* Logo */}
         <div className="flex items-center gap-3">
-          <button
-            className="rounded-full p-2 text-slate-600 transition hover:bg-slate-100 lg:hidden"
-            aria-label="Open menu"
+          <div
+            className="
+              flex h-9 w-9
+              items-center justify-center
+              rounded-xl
+              text-lg
+              font-bold
+            "
+            style={{
+              background: "var(--primary)",
+              color: "var(--primary-foreground)",
+            }}
           >
-            <Menu size={21} />
-          </button>
+            +
+          </div>
 
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-50 text-teal-700">
-              <HeartPulse size={20} />
-            </div>
+          <div>
+            <h1
+              className="
+                text-lg font-semibold
+                tracking-tight
+              "
+            >
+              HealthBot
+            </h1>
 
-            <div>
-              <h1 className="text-[17px] font-semibold tracking-tight text-slate-900">
-                HealthBot
-              </h1>
-
-              <p className="hidden text-[11px] text-slate-500 sm:block">
-                Patient Education AI
-              </p>
-            </div>
+            <p
+              className="hidden text-xs sm:block"
+              style={{
+                color:
+                  "var(--muted-foreground)",
+              }}
+            >
+              Your health education assistant
+            </p>
           </div>
         </div>
 
+        {/* Actions */}
         <div className="flex items-center gap-2">
-          {onNewTopic && (
-            <button
-              onClick={onNewTopic}
-              className="flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100"
-            >
-              <Plus size={17} />
-              <span className="hidden sm:inline">
-                New topic
-              </span>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            aria-label="Toggle dark mode"
+            className="
+              flex h-10 w-10
+              items-center justify-center
+              rounded-full
+              border
+              transition
+              hover:scale-105
+            "
+            style={{
+              borderColor: "var(--border)",
+              background: "var(--card)",
+            }}
+          >
+            {darkMode ? "☀" : "☾"}
+          </button>
 
-          <div className="hidden items-center gap-2 rounded-full bg-teal-50 px-3 py-2 text-xs font-medium text-teal-700 sm:flex">
-            <ShieldCheck size={15} />
-            Education only
-          </div>
+          <button
+            type="button"
+            aria-label="Profile"
+            className="
+              flex h-10 w-10
+              items-center justify-center
+              rounded-full
+              text-sm font-semibold
+            "
+            style={{
+              background: "var(--muted)",
+              color: "var(--foreground)",
+            }}
+          >
+            G
+          </button>
         </div>
       </div>
     </header>
