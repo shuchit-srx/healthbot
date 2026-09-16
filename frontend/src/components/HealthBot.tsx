@@ -1,14 +1,18 @@
 "use client";
 
 import {
-  FormEvent,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+  AlertCircle,
+  CheckCircle2,
+  FileText,
+  HeartPulse,
+  Loader2,
+  RotateCcw,
+  Sparkles,
+  XCircle,
+} from "lucide-react";
+import { useRef, useState } from "react";
 
 import {
-  ApiError,
   decideSession,
   generateQuiz,
   gradeQuiz,
@@ -16,175 +20,94 @@ import {
   validateTopic,
 } from "@/src/lib/api";
 
-type MessageRole =
-  | "user"
-  | "assistant";
+import Footer from "./Footer";
+import Header from "./Header";
+import TopicInput from "./TopicInput";
 
-type MessageType =
-  | "normal"
-  | "summary"
-  | "quiz"
-  | "feedback";
+const SUGGESTIONS = [
+  "Diabetes",
+  "High blood pressure",
+  "Sleep health",
+  "Vitamin D",
+  "Heart health",
+];
 
 type Message = {
   id: string;
-  role: MessageRole;
+  role: "user" | "assistant";
   content: string;
-  type: MessageType;
 };
 
-type LoadingStage =
-  | "idle"
-  | "validating"
-  | "researching"
-  | "generating"
-  | "quiz"
-  | "grading";
-
-const MAX_TOPIC_LENGTH = 200;
-const MAX_ANSWER_LENGTH = 2000;
+type QuizState = {
+  question: string;
+  answer: string;
+  grade: string | null;
+  feedback: string | null;
+};
 
 export default function HealthBot() {
+  const [topic, setTopic] =
+    useState("");
+
   const [messages, setMessages] =
     useState<Message[]>([]);
 
-  const [input, setInput] =
-    useState("");
-
-  const [answer, setAnswer] =
-    useState("");
-
-  const [loadingStage, setLoadingStage] =
-    useState<LoadingStage>("idle");
+  const [loading, setLoading] =
+    useState(false);
 
   const [error, setError] =
     useState<string | null>(null);
 
-  const [currentTopic, setCurrentTopic] =
-    useState("");
+  const [quiz, setQuiz] =
+    useState<QuizState | null>(null);
 
-  const [currentSummary, setCurrentSummary] =
-    useState("");
+  const [quizLoading, setQuizLoading] =
+    useState(false);
 
-  const [currentQuestion, setCurrentQuestion] =
-    useState("");
+  const [gradeLoading, setGradeLoading] =
+    useState(false);
+
+  const [sessionActive, setSessionActive] =
+    useState(false);
 
   const abortControllerRef =
     useRef<AbortController | null>(null);
 
-  const messagesEndRef =
-    useRef<HTMLDivElement | null>(null);
-
-  const isLoading =
-    loadingStage !== "idle";
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({
-      behavior: "smooth",
-    });
-  }, [messages]);
-
-  useEffect(() => {
-    return () => {
-      abortControllerRef.current?.abort();
-    };
-  }, []);
-
-  const addMessage = (
-    role: MessageRole,
-    content: string,
-    type: MessageType = "normal",
-  ) => {
-    const id = crypto.randomUUID();
-
-    setMessages((previous) => [
-      ...previous,
-      {
-        id,
-        role,
-        content,
-        type,
-      },
-    ]);
-
-    return id;
-  };
-
-  const updateMessage = (
-    id: string,
-    content: string,
-  ) => {
-    setMessages((previous) =>
-      previous.map((message) =>
-        message.id === id
-          ? {
-              ...message,
-              content,
-            }
-          : message,
-      ),
-    );
-  };
-
-  const removeMessage = (
-    id: string,
-  ) => {
-    setMessages((previous) =>
-      previous.filter(
-        (message) =>
-          message.id !== id,
-      ),
-    );
-  };
-
-  const handleError = (
-    err: unknown,
-  ) => {
+  function createId() {
     if (
-      err instanceof DOMException &&
-      err.name === "AbortError"
+      typeof crypto !== "undefined" &&
+      crypto.randomUUID
     ) {
+      return crypto.randomUUID();
+    }
+
+    return `${Date.now()}-${Math.random()}`;
+  }
+
+  function resetConversation() {
+    abortControllerRef.current?.abort();
+
+    setMessages([]);
+    setTopic("");
+    setError(null);
+    setQuiz(null);
+    setSessionActive(false);
+    setLoading(false);
+    setQuizLoading(false);
+    setGradeLoading(false);
+  }
+
+  async function askTopic(
+    requestedTopic?: string,
+  ) {
+    const selectedTopic =
+      (requestedTopic ?? topic).trim();
+
+    if (!selectedTopic || loading) {
       return;
     }
 
-    if (err instanceof ApiError) {
-      setError(err.message);
-      return;
-    }
-
-    if (err instanceof Error) {
-      setError(err.message);
-      return;
-    }
-
-    setError(
-      "Something went wrong. Please try again.",
-    );
-  };
-
-  const handleSubmit = async (
-    event: FormEvent,
-  ) => {
-    event.preventDefault();
-
-    if (isLoading) {
-      return;
-    }
-
-    const topic =
-      input.trim();
-
-    if (!topic) {
-      setError(
-        "Please enter a health topic.",
-      );
-      return;
-    }
-
-    if (
-      topic.length >
-      MAX_TOPIC_LENGTH
-    ) {
+    if (selectedTopic.length > 200) {
       setError(
         "Please keep the health topic under 200 characters.",
       );
@@ -192,406 +115,665 @@ export default function HealthBot() {
     }
 
     setError(null);
-    setInput("");
-    setCurrentTopic(topic);
-    setCurrentSummary("");
-    setCurrentQuestion("");
-    setAnswer("");
+    setQuiz(null);
+    setSessionActive(true);
+    setLoading(true);
 
-    addMessage(
-      "user",
-      topic,
-    );
+    setMessages((current) => [
+      ...current,
+      {
+        id: createId(),
+        role: "user",
+        content: selectedTopic,
+      },
+    ]);
 
-    await processTopic(topic);
-  };
-
-  const processTopic = async (
-    topic: string,
-  ) => {
-    abortControllerRef.current?.abort();
-
-    const controller =
-      new AbortController();
-
-    abortControllerRef.current =
-      controller;
+    setTopic("");
 
     try {
-      setLoadingStage(
-        "validating",
-      );
-
       const validation =
         await validateTopic(
-          topic,
+          selectedTopic,
         );
 
       if (!validation.valid) {
-        setError(
+        throw new Error(
           validation.message ||
             "Please enter a valid health topic.",
         );
-
-        return;
       }
 
-      setLoadingStage(
-        "researching",
-      );
+      const assistantId = createId();
 
-      const assistantMessageId =
-        addMessage(
-          "assistant",
-          "",
-          "summary",
-        );
+      setMessages((current) => [
+        ...current,
+        {
+          id: assistantId,
+          role: "assistant",
+          content: "",
+        },
+      ]);
 
-      setLoadingStage(
-        "generating",
-      );
+      const controller =
+        new AbortController();
 
-      let summary = "";
+      abortControllerRef.current =
+        controller;
 
       await streamSummary(
-        validation.topic ||
-          topic,
+        selectedTopic,
         (chunk) => {
-          summary += chunk;
-
-          updateMessage(
-            assistantMessageId,
-            summary,
-          );
-
-          setCurrentSummary(
-            summary,
+          setMessages((current) =>
+            current.map((message) =>
+              message.id === assistantId
+                ? {
+                    ...message,
+                    content:
+                      message.content +
+                      chunk,
+                  }
+                : message,
+            ),
           );
         },
         controller.signal,
       );
-
-      if (!summary.trim()) {
-        removeMessage(
-          assistantMessageId,
-        );
-
-        throw new ApiError(
-          "HealthBot returned an empty response. Please try again.",
-          500,
-        );
-      }
-
-      setLoadingStage(
-        "quiz",
-      );
-
-      const quiz =
-        await generateQuiz(
-          summary,
-        );
-
-      setCurrentQuestion(
-        quiz.question,
-      );
-
-      addMessage(
-        "assistant",
-        quiz.question,
-        "quiz",
-      );
     } catch (err) {
-      handleError(err);
-    } finally {
-      setLoadingStage(
-        "idle",
-      );
-
-      abortControllerRef.current =
-        null;
-    }
-  };
-
-  const handleGrade = async () => {
-    if (
-      isLoading ||
-      !answer.trim() ||
-      !currentSummary ||
-      !currentQuestion ||
-      !currentTopic
-    ) {
-      return;
-    }
-
-    const userAnswer =
-      answer.trim();
-
-    if (
-      userAnswer.length >
-      MAX_ANSWER_LENGTH
-    ) {
-      setError(
-        "Please keep your answer under 2000 characters.",
-      );
-      return;
-    }
-
-    setError(null);
-
-    addMessage(
-      "user",
-      userAnswer,
-    );
-
-    setAnswer("");
-
-    try {
-      setLoadingStage(
-        "grading",
-      );
-
-      const result =
-        await gradeQuiz(
-          currentTopic,
-          currentSummary,
-          currentQuestion,
-          userAnswer,
-        );
-
-      addMessage(
-        "assistant",
-        `${result.grade}\n\n${result.feedback}`,
-        "feedback",
-      );
-    } catch (err) {
-      handleError(err);
-    } finally {
-      setLoadingStage(
-        "idle",
-      );
-    }
-  };
-
-  const handleContinue =
-    async (
-      continueSession: boolean,
-    ) => {
-      if (isLoading) {
+      if (
+        err instanceof DOMException &&
+        err.name === "AbortError"
+      ) {
         return;
       }
 
-      setError(null);
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Unable to complete the request.";
 
-      try {
+      setError(message);
+
+      setMessages((current) =>
+        current.filter(
+          (message) =>
+            message.content.length > 0 ||
+            message.role === "user",
+        ),
+      );
+    } finally {
+      setLoading(false);
+      abortControllerRef.current = null;
+    }
+  }
+
+  async function handleGenerateQuiz() {
+    const assistantMessages =
+      messages.filter(
+        (message) =>
+          message.role === "assistant" &&
+          message.content.trim(),
+      );
+
+    const latestSummary =
+      assistantMessages[
+        assistantMessages.length - 1
+      ]?.content;
+
+    if (!latestSummary || quizLoading) {
+      return;
+    }
+
+    setQuizLoading(true);
+    setError(null);
+
+    try {
+      const result =
+        await generateQuiz(
+          latestSummary,
+        );
+
+      setQuiz({
+        question: result.question,
+        answer: "",
+        grade: null,
+        feedback: null,
+      });
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to generate the quiz.",
+      );
+    } finally {
+      setQuizLoading(false);
+    }
+  }
+
+  async function handleGradeQuiz() {
+    if (
+      !quiz ||
+      !quiz.answer.trim() ||
+      gradeLoading
+    ) {
+      return;
+    }
+
+    const userMessages =
+      messages.filter(
+        (message) =>
+          message.role === "user",
+      );
+
+    const latestTopic =
+      userMessages[
+        userMessages.length - 1
+      ]?.content;
+
+    const assistantMessages =
+      messages.filter(
+        (message) =>
+          message.role === "assistant",
+      );
+
+    const latestSummary =
+      assistantMessages[
+        assistantMessages.length - 1
+      ]?.content;
+
+    if (
+      !latestTopic ||
+      !latestSummary
+    ) {
+      return;
+    }
+
+    setGradeLoading(true);
+    setError(null);
+
+    try {
+      const result =
+        await gradeQuiz(
+          latestTopic,
+          latestSummary,
+          quiz.question,
+          quiz.answer,
+        );
+
+      setQuiz((current) =>
+        current
+          ? {
+              ...current,
+              grade: result.grade,
+              feedback: result.feedback,
+            }
+          : null,
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to grade the answer.",
+      );
+    } finally {
+      setGradeLoading(false);
+    }
+  }
+
+  async function handleContinue(
+    continueSession: boolean,
+  ) {
+    try {
+      const result =
         await decideSession(
           continueSession,
         );
 
-        if (continueSession) {
-          setCurrentQuestion("");
-          setCurrentSummary("");
-          setAnswer("");
+      setSessionActive(
+        result.continue_session,
+      );
 
-          addMessage(
-            "assistant",
-            "Sure. Enter another health topic to continue.",
-          );
-        } else {
-          addMessage(
-            "assistant",
-            "Session ended. Take care.",
-          );
-        }
-      } catch (err) {
-        handleError(err);
+      if (!result.continue_session) {
+        setQuiz(null);
       }
-    };
-
-  const handleRetry = () => {
-    if (
-      isLoading ||
-      !currentTopic
-    ) {
-      return;
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to update the session.",
+      );
     }
+  }
 
-    setError(null);
-    processTopic(
-      currentTopic,
+  const hasConversation =
+    messages.length > 0;
+
+  const hasSummary =
+    messages.some(
+      (message) =>
+        message.role === "assistant" &&
+        message.content.trim(),
     );
-  };
 
-  const loadingText = {
-    validating:
-      "Checking your topic...",
-    researching:
-      "Researching medical information...",
-    generating:
-      "Generating your explanation...",
-    quiz:
-      "Preparing a question...",
-    grading:
-      "Checking your answer...",
-    idle: "",
-  }[loadingStage];
+  const latestAssistant =
+    [...messages]
+      .reverse()
+      .find(
+        (message) =>
+          message.role === "assistant",
+      );
 
   return (
-    <div className="flex min-h-[70vh] flex-col">
-      <div className="flex-1 space-y-4">
-        {messages.map(
-          (message) => (
-            <div
-              key={message.id}
-              className={
-                message.role ===
-                "user"
-                  ? "ml-auto max-w-2xl rounded-2xl bg-blue-600 p-4 text-white"
-                  : "mr-auto max-w-3xl rounded-2xl border p-4"
-              }
-            >
-              <div className="whitespace-pre-wrap">
-                {message.content}
+    <div className="app-shell">
+      <Header />
+
+      <main className="app-main">
+        {!hasConversation ? (
+          <section className="home-page">
+            <div className="home-content">
+              <div className="hero">
+                <div
+                  className="hero-orb"
+                  aria-hidden="true"
+                />
+
+                <h1>
+                  Hello, how can I help?
+                </h1>
+
+                <p>
+                  Ask HealthBot about a health
+                  topic and get clear,
+                  evidence-informed educational
+                  information powered by AI.
+                </p>
               </div>
-            </div>
-          ),
-        )}
 
-        {loadingText && (
-          <div
-            role="status"
-            aria-live="polite"
-            className="mr-auto rounded-2xl border p-4"
-          >
-            {loadingText}
-          </div>
-        )}
-
-        {error && (
-          <div
-            role="alert"
-            className="rounded-xl border border-red-300 p-4"
-          >
-            <p className="text-sm text-red-600">
-              {error}
-            </p>
-
-            <button
-              type="button"
-              onClick={
-                handleRetry
-              }
-              disabled={
-                isLoading ||
-                !currentTopic
-              }
-              className="mt-3 rounded-lg border px-4 py-2 text-sm"
-            >
-              Try again
-            </button>
-          </div>
-        )}
-
-        {currentQuestion &&
-          !isLoading && (
-            <div className="space-y-3">
-              <textarea
-                value={answer}
-                onChange={(event) =>
-                  setAnswer(
-                    event.target.value,
-                  )
+              <TopicInput
+                value={topic}
+                onChange={setTopic}
+                onSubmit={() =>
+                  askTopic()
                 }
-                maxLength={
-                  MAX_ANSWER_LENGTH
-                }
-                placeholder="Write your answer..."
-                aria-label="Quiz answer"
-                className="min-h-28 w-full rounded-xl border p-3"
+                disabled={loading}
               />
 
-              <button
-                type="button"
-                onClick={
-                  handleGrade
-                }
-                disabled={
-                  !answer.trim()
-                }
-                className="rounded-xl border px-5 py-2"
-              >
-                Submit answer
-              </button>
+              <div className="suggestions">
+                {SUGGESTIONS.map(
+                  (suggestion) => (
+                    <button
+                      key={suggestion}
+                      type="button"
+                      className="suggestion-chip"
+                      onClick={() =>
+                        askTopic(
+                          suggestion,
+                        )
+                      }
+                      disabled={loading}
+                    >
+                      <Sparkles size={14} />
+                      {suggestion}
+                    </button>
+                  ),
+                )}
+              </div>
+
+              {error && (
+                <ErrorMessage
+                  error={error}
+                  onRetry={() =>
+                    askTopic()
+                  }
+                />
+              )}
             </div>
-          )}
 
-        {!currentQuestion &&
-          currentSummary &&
-          !isLoading && (
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() =>
-                  handleContinue(
-                    true,
-                  )
-                }
-                className="rounded-xl border px-5 py-2"
-              >
-                Continue
-              </button>
+            <Footer />
+          </section>
+        ) : (
+          <section className="chat-page">
+            <div className="chat-list">
+              {messages.map(
+                (message) => {
+                  if (
+                    message.role === "user"
+                  ) {
+                    return (
+                      <div
+                        className="message-row user"
+                        key={message.id}
+                      >
+                        <div className="user-message">
+                          {message.content}
+                        </div>
+                      </div>
+                    );
+                  }
 
-              <button
-                type="button"
-                onClick={() =>
-                  handleContinue(
-                    false,
-                  )
-                }
-                className="rounded-xl border px-5 py-2"
-              >
-                End session
-              </button>
+                  return (
+                    <div
+                      className="message-row assistant"
+                      key={message.id}
+                    >
+                      <div className="assistant-message">
+                        <div className="assistant-avatar">
+                          <HeartPulse
+                            size={18}
+                          />
+                        </div>
+
+                        <div className="assistant-content">
+                          <div className="assistant-name">
+                            HealthBot
+                          </div>
+
+                          {message.content ? (
+                            <div className="summary-content">
+                              {message.content}
+                            </div>
+                          ) : (
+                            <LoadingDots />
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                },
+              )}
+
+              {error && (
+                <ErrorMessage
+                  error={error}
+                  onRetry={() =>
+                    askTopic()
+                  }
+                />
+              )}
+
+              {hasSummary &&
+                latestAssistant?.content && (
+                  <>
+                    <div className="quiz-actions">
+                      <button
+                        type="button"
+                        className="primary-button"
+                        onClick={
+                          handleGenerateQuiz
+                        }
+                        disabled={
+                          quizLoading ||
+                          loading
+                        }
+                      >
+                        {quizLoading ? (
+                          <>
+                            <Loader2
+                              size={17}
+                              className="spin"
+                            />
+                            Creating quiz...
+                          </>
+                        ) : (
+                          <>
+                            <FileText
+                              size={17}
+                            />
+                            Test my knowledge
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {quiz && (
+                      <QuizCard
+                        quiz={quiz}
+                        setQuiz={setQuiz}
+                        loading={
+                          gradeLoading
+                        }
+                        onGrade={
+                          handleGradeQuiz
+                        }
+                      />
+                    )}
+
+                    {quiz?.grade &&
+                      quiz.feedback && (
+                        <GradeResult
+                          grade={quiz.grade}
+                          feedback={
+                            quiz.feedback
+                          }
+                        />
+                      )}
+
+                    {quiz?.grade && (
+                      <div className="quiz-actions">
+                        <button
+                          type="button"
+                          className="suggestion-chip"
+                          onClick={() =>
+                            handleContinue(
+                              true,
+                            )
+                          }
+                        >
+                          Continue learning
+                        </button>
+
+                        <button
+                          type="button"
+                          className="suggestion-chip"
+                          onClick={() =>
+                            handleContinue(
+                              false,
+                            )
+                          }
+                        >
+                          End session
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
             </div>
-          )}
 
+            {sessionActive && (
+              <div className="composer">
+                <div className="composer-inner">
+                  <TopicInput
+                    value={topic}
+                    onChange={setTopic}
+                    onSubmit={() =>
+                      askTopic()
+                    }
+                    disabled={loading}
+                    placeholder="Ask a follow-up..."
+                  />
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+      </main>
+
+      {hasConversation && (
         <div
-          ref={messagesEndRef}
+          style={{
+            position: "fixed",
+            left: 20,
+            bottom: 20,
+            zIndex: 45,
+          }}
+        >
+          <button
+            type="button"
+            className="icon-button"
+            onClick={
+              resetConversation
+            }
+            title="New conversation"
+            aria-label="Start new conversation"
+          >
+            <RotateCcw size={18} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LoadingDots() {
+  return (
+    <div
+      className="loading-dots"
+      aria-label="HealthBot is thinking"
+    >
+      <span className="loading-dot" />
+      <span className="loading-dot" />
+      <span className="loading-dot" />
+    </div>
+  );
+}
+
+function ErrorMessage({
+  error,
+  onRetry,
+}: {
+  error: string;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="error-card">
+      <div className="error-content">
+        <AlertCircle
+          size={18}
+          style={{ flexShrink: 0 }}
         />
+
+        <span>{error}</span>
       </div>
 
-      <form
-        onSubmit={
-          handleSubmit
-        }
-        className="mt-6 flex gap-3"
+      <button
+        type="button"
+        className="retry-button"
+        onClick={onRetry}
       >
-        <textarea
-          value={input}
-          onChange={(event) =>
-            setInput(
-              event.target.value,
-            )
-          }
-          maxLength={
-            MAX_TOPIC_LENGTH
-          }
-          disabled={isLoading}
-          placeholder="Ask about a health topic..."
-          aria-label="Health topic"
-          className="min-h-14 flex-1 rounded-xl border p-3"
-        />
+        Try again
+      </button>
+    </div>
+  );
+}
 
+function QuizCard({
+  quiz,
+  setQuiz,
+  loading,
+  onGrade,
+}: {
+  quiz: QuizState;
+  setQuiz: React.Dispatch<
+    React.SetStateAction<QuizState | null>
+  >;
+  loading: boolean;
+  onGrade: () => void;
+}) {
+  return (
+    <div className="quiz-card">
+      <div className="quiz-label">
+        <Sparkles size={15} />
+        Knowledge check
+      </div>
+
+      <div className="quiz-question">
+        {quiz.question}
+      </div>
+
+      <textarea
+        className="answer-input"
+        value={quiz.answer}
+        onChange={(event) =>
+          setQuiz((current) =>
+            current
+              ? {
+                  ...current,
+                  answer:
+                    event.target.value.slice(
+                      0,
+                      2000,
+                    ),
+                }
+              : null,
+          )
+        }
+        maxLength={2000}
+        placeholder="Write your answer..."
+        disabled={loading}
+      />
+
+      <div className="quiz-actions">
         <button
-          type="submit"
+          type="button"
+          className="primary-button"
+          onClick={onGrade}
           disabled={
-            isLoading ||
-            !input.trim()
+            loading ||
+            !quiz.answer.trim()
           }
-          className="rounded-xl border px-5 py-2"
         >
-          Ask
+          {loading ? (
+            <>
+              <Loader2
+                size={17}
+                className="spin"
+              />
+              Checking...
+            </>
+          ) : (
+            "Submit answer"
+          )}
         </button>
-      </form>
+      </div>
+    </div>
+  );
+}
+
+function GradeResult({
+  grade,
+  feedback,
+}: {
+  grade: string;
+  feedback: string;
+}) {
+  const normalized =
+    grade.toLowerCase();
+
+  const correct =
+    normalized.includes("correct") ||
+    normalized.includes("excellent") ||
+    normalized.includes("good");
+
+  return (
+    <div
+      className={`grade-card ${
+        correct
+          ? "correct"
+          : "incorrect"
+      }`}
+    >
+      <div className="grade-heading">
+        {correct ? (
+          <CheckCircle2 size={19} />
+        ) : (
+          <XCircle size={19} />
+        )}
+
+        {grade}
+      </div>
+
+      <div className="grade-feedback">
+        {feedback}
+      </div>
     </div>
   );
 }

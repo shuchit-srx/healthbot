@@ -1,75 +1,99 @@
 "use client";
 
 import {
-  FormEvent,
+  ArrowUp,
+} from "lucide-react";
+import {
+  KeyboardEvent,
+  useEffect,
+  useRef,
 } from "react";
 
-type TopicInputProps = {
+interface TopicInputProps {
   value: string;
-  onChange: (
-    value: string,
-  ) => void;
-  onSubmit: (
-    event: FormEvent,
-  ) => void;
+  onChange: (value: string) => void;
+  onSubmit: () => void;
   disabled?: boolean;
-};
+  placeholder?: string;
+}
 
 export default function TopicInput({
   value,
   onChange,
   onSubmit,
   disabled = false,
+  placeholder = "Ask about a health topic...",
 }: TopicInputProps) {
-  return (
-    <form
-      onSubmit={onSubmit}
-      className="w-full"
-    >
-      <label
-        htmlFor="health-topic"
-        className="sr-only"
-      >
-        Health topic
-      </label>
+  const textareaRef =
+    useRef<HTMLTextAreaElement>(null);
 
-      <div className="flex flex-col gap-3 sm:flex-row">
+  useEffect(() => {
+    const textarea =
+      textareaRef.current;
+
+    if (!textarea) {
+      return;
+    }
+
+    textarea.style.height = "auto";
+
+    const height = Math.min(
+      textarea.scrollHeight,
+      150,
+    );
+
+    textarea.style.height = `${height}px`;
+  }, [value]);
+
+  function handleKeyDown(
+    event: KeyboardEvent<HTMLTextAreaElement>,
+  ) {
+    if (
+      event.key === "Enter" &&
+      !event.shiftKey
+    ) {
+      event.preventDefault();
+
+      if (!disabled && value.trim()) {
+        onSubmit();
+      }
+    }
+  }
+
+  return (
+    <div className="topic-input-wrapper">
+      <div className="topic-input">
         <textarea
-          id="health-topic"
+          ref={textareaRef}
+          className="topic-textarea"
           value={value}
           onChange={(event) =>
-            onChange(
-              event.target.value,
-            )
+            onChange(event.target.value)
           }
-          disabled={disabled}
+          onKeyDown={handleKeyDown}
+          placeholder={placeholder}
           maxLength={200}
-          rows={2}
-          placeholder="Ask about a health topic..."
-          aria-describedby="topic-help"
-          className="min-h-14 flex-1 resize-none rounded-xl border p-3"
+          disabled={disabled}
+          rows={1}
+          aria-label="Health topic"
         />
 
         <button
-          type="submit"
+          type="button"
+          className="ask-button"
+          onClick={onSubmit}
           disabled={
-            disabled ||
-            !value.trim()
+            disabled || !value.trim()
           }
-          className="rounded-xl border px-5 py-3 sm:self-end"
+          aria-label="Ask HealthBot"
         >
-          Ask HealthBot
+          <ArrowUp size={19} />
+
+          <span className="ask-button-text">
+            Ask
+          </span>
         </button>
       </div>
-
-      <p
-        id="topic-help"
-        className="mt-2 text-xs opacity-60"
-      >
-        Enter a health topic for
-        patient-friendly educational
-        information.
-      </p>
-    </form>
+    </div>
   );
 }

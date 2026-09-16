@@ -3,33 +3,61 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+
 BASE_DIR = Path(__file__).resolve().parents[2]
 CONFIG_FILE = BASE_DIR / "config.env"
 
+# Load the project's config.env explicitly.
 load_dotenv(CONFIG_FILE, override=True)
 
 
 class Settings:
-    app_name: str = os.getenv("APP_NAME", "HealthBot")
-    app_version: str = os.getenv("APP_VERSION", "1.0.0")
-    environment: str = os.getenv("ENVIRONMENT", "development")
+    def __init__(self) -> None:
+        self.app_name = os.getenv(
+            "APP_NAME",
+            "HealthBot",
+        )
 
-    allowed_origins: str = os.getenv(
-        "ALLOWED_ORIGINS",
-        "http://localhost:3000",
-    )
+        self.app_version = os.getenv(
+            "APP_VERSION",
+            "1.0.0",
+        )
 
-    max_topic_length: int = int(
-        os.getenv("MAX_TOPIC_LENGTH", "200")
-    )
+        self.environment = os.getenv(
+            "ENVIRONMENT",
+            "development",
+        )
 
-    max_answer_length: int = int(
-        os.getenv("MAX_ANSWER_LENGTH", "2000")
-    )
+        self.allowed_origins = os.getenv(
+            "ALLOWED_ORIGINS",
+            "http://localhost:3030",
+        )
 
-    gemini_api_key: str | None = os.getenv("GEMINI_API_KEY")
-    gemini_api_keys: str | None = os.getenv("GEMINI_API_KEYS")
-    tavily_api_key: str | None = os.getenv("TAVILY_API_KEY")
+        self.max_topic_length = int(
+            os.getenv(
+                "MAX_TOPIC_LENGTH",
+                "200",
+            )
+        )
+
+        self.max_answer_length = int(
+            os.getenv(
+                "MAX_ANSWER_LENGTH",
+                "2000",
+            )
+        )
+
+        self.gemini_api_key = os.getenv(
+            "GEMINI_API_KEY"
+        )
+
+        self.gemini_api_keys = os.getenv(
+            "GEMINI_API_KEYS"
+        )
+
+        self.tavily_api_key = os.getenv(
+            "TAVILY_API_KEY"
+        )
 
     @property
     def cors_origins(self) -> list[str]:
@@ -44,7 +72,9 @@ class Settings:
         keys: list[str] = []
 
         if self.gemini_api_key:
-            keys.append(self.gemini_api_key.strip())
+            keys.append(
+                self.gemini_api_key.strip()
+            )
 
         if self.gemini_api_keys:
             keys.extend(
