@@ -1,38 +1,66 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
+import os
+
+from dotenv import load_dotenv
+from pydantic import BaseModel
 
 
-class Settings(BaseSettings):
-    app_name: str = "HealthBot"
-    app_version: str = "1.0.0"
-    debug: bool = True
+load_dotenv("config.env")
 
-    gemini_api_key_1: str = ""
-    gemini_api_key_2: str = ""
-    gemini_api_key_3: str = ""
-    gemini_api_key_4: str = ""
-    gemini_api_key_5: str = ""
 
+class Settings(BaseModel):
+    gemini_api_keys: list[str] = []
     tavily_api_key: str = ""
+    allowed_origins: list[str] = [
+        "http://localhost:3000"
+    ]
+    max_topic_length: int = 200
+    max_answer_length: int = 2000
 
-    model_config = SettingsConfigDict(
-        env_file="config.env",
-        env_file_encoding="utf-8",
-        extra="ignore",
+
+def _get_gemini_keys() -> list[str]:
+    keys = []
+
+    for name, value in os.environ.items():
+        if name.startswith(
+            "GEMINI_API_KEY"
+        ) and value.strip():
+            keys.append(value.strip())
+
+    primary = os.getenv(
+        "GEMINI_API_KEY"
     )
 
-    @property
-    def gemini_api_keys(self) -> list[str]:
-        return [
-            key
-            for key in [
-                self.gemini_api_key_1,
-                self.gemini_api_key_2,
-                self.gemini_api_key_3,
-                self.gemini_api_key_4,
-                self.gemini_api_key_5,
-            ]
-            if key
-        ]
+    if (
+        primary
+        and primary.strip()
+        and primary.strip() not in keys
+    ):
+        keys.insert(
+            0,
+            primary.strip(),
+        )
+
+    return keys
 
 
-settings = Settings()
+def _get_allowed_origins() -> list[str]:
+    value = os.getenv(
+        "ALLOWED_ORIGINS",
+        "http://localhost:3000",
+    )
+
+    return [
+        origin.strip()
+        for origin in value.split(",")
+        if origin.strip()
+    ]
+
+
+settings = Settings(
+    gemini_api_keys=_get_gemini_keys(),
+    tavily_api_key=os.getenv(
+        "TAVILY_API_KEY",
+        "",
+    ),
+    allowed_origins=_get_allowed_origins(),
+)

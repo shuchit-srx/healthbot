@@ -72,6 +72,10 @@ def test_gemini_empty_response():
         content=""
     )
 
+    service.api_keys = [
+        "key_1"
+    ]
+
     with patch.object(
         service,
         "llm",
@@ -84,7 +88,6 @@ def test_gemini_empty_response():
             service.generate_with_gemini(
                 "Explain diabetes."
             )
-
 
 def test_tavily_invalid_response():
     service = TavilyService()

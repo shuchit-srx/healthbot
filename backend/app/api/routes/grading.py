@@ -4,7 +4,6 @@ from app.core.prompts import GRADING_PROMPT
 from app.models.requests import QuizAnswerRequest
 from app.models.responses import GradeResponse
 from app.services.gemini import GeminiService
-from app.services.response_parser import extract_grade
 from app.utils.helpers import format_prompt
 
 
@@ -21,29 +20,12 @@ gemini_service = GeminiService()
     "/grade",
     response_model=GradeResponse,
 )
-def grade_answer(
-    request: QuizAnswerRequest,
+def grade_quiz(
     topic: str,
     summary: str,
     quiz_question: str,
+    request: QuizAnswerRequest,
 ) -> GradeResponse:
-    """Grade a user's answer."""
-
-    if not topic.strip():
-        raise ValueError(
-            "Topic cannot be empty."
-        )
-
-    if not summary.strip():
-        raise ValueError(
-            "Summary cannot be empty."
-        )
-
-    if not quiz_question.strip():
-        raise ValueError(
-            "Quiz question cannot be empty."
-        )
-
     prompt = format_prompt(
         GRADING_PROMPT,
         topic=topic,
@@ -52,18 +34,46 @@ def grade_answer(
         user_answer=request.user_answer,
     )
 
-    feedback = gemini_service.generate_with_gemini(
+    result = gemini_service.generate_with_gemini(
         prompt
     )
 
-    grade = extract_grade(feedback)
+    lines = result.splitlines()
 
-    if not grade:
-        raise ValueError(
-            "Unable to determine a valid quiz grade."
-        )
+    grade = "Ungraded"
+    feedback = result
+
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+
+        if stripped.lower().startswith("grade:"):
+            grade = stripped.split(
+                ":",
+                1,
+            )[1].strip()
+
+        if stripped.lower().startswith(
+            "explanation:"
+        ):
+            feedback = stripped.split(
+                ":",
+                1,
+            )[1].strip()
+
+            remaining = lines[index + 1:]
+
+            if remaining:
+                feedback = (
+                    feedback
+                    + "\n"
+                    + "\n".join(
+                        remaining
+                    ).strip()
+                )
+
+            break
 
     return GradeResponse(
         grade=grade,
-        feedback=feedback,
+        feedback=feedback.strip(),
     )

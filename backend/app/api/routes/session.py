@@ -12,15 +12,19 @@ router = APIRouter(
 
 @router.post(
     "/decision",
-    response_model=HealthBotStateResponse,
 )
 def session_decision(
     request: SessionDecisionRequest,
-) -> HealthBotStateResponse:
-    """Return the user's session decision."""
+) -> dict:
+    """
+    Store the user's decision about continuing
+    the HealthBot session.
+    """
 
-    return HealthBotStateResponse(
-        data={
-            "continue_session": request.continue_session,
-        }
+    state = HealthBotStateResponse(
+        continue_session=request.continue_session,
     )
+
+    return {
+        "data": state.model_dump(),
+    }
