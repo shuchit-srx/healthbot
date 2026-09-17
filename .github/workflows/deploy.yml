@@ -20,7 +20,7 @@ env:
 
 jobs:
 
-    debug-oidc:
+  debug-oidc:
     name: Debug GitHub OIDC
     runs-on: ubuntu-latest
 
