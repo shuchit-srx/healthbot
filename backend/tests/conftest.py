@@ -1,4 +1,29 @@
+import os
+
 import pytest
+
+
+# Provide non-secret placeholder credentials so application services
+# can be imported during CI test collection.
+os.environ.setdefault(
+    "GEMINI_API_KEY",
+    "ci-test-gemini-key",
+)
+
+os.environ.setdefault(
+    "TAVILY_API_KEY",
+    "ci-test-tavily-key",
+)
+
+
+def pytest_collection_modifyitems(config, items):
+    skip_integration = pytest.mark.skip(
+        reason="Integration tests require external API credentials."
+    )
+
+    for item in items:
+        if "integration" in item.keywords:
+            item.add_marker(skip_integration)
 
 
 @pytest.fixture
