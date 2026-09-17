@@ -14,9 +14,7 @@ permissions:
 env:
   AWS_REGION: ap-south-1
   BACKEND_ECR_REPOSITORY: healthbot-backend
-  FRONTEND_ECR_REPOSITORY: healthbot-frontend- name: Run backend tests
-  run: |
-    pytest -q -m "not integration"
+  FRONTEND_ECR_REPOSITORY: healthbot-frontend
   EC2_HOST: ${{ secrets.EC2_HOST }}
   EC2_USER: ${{ secrets.EC2_USER }}
 
@@ -180,4 +178,4 @@ jobs:
             https://3.110.78.125.nip.io/health
 
           echo
-          echo "Production deployment verified.
+          echo "Production deployment verified."
