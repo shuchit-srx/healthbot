@@ -1,46 +1,47 @@
 services:
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: ${BACKEND_ECR_URI}:latest
+    container_name: healthbot-backend
     restart: unless-stopped
     env_file:
-      - ./backend/config.env
+      - .env
     expose:
       - "8000"
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
-        ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 20s
     networks:
       - healthbot-network
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    image: ${FRONTEND_ECR_URI}:latest
+    container_name: healthbot-frontend
     restart: unless-stopped
-    depends_on:
-      backend:
-        condition: service_healthy
     expose:
       - "3000"
-    environment:
-      NODE_ENV: production
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    depends_on:
+      - backend
+    networks:
+      - healthbot-network
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: healthbot-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+      - frontend
     networks:
       - healthbot-network
 
 networks:
   healthbot-network:
     driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:
