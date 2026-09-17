@@ -20,6 +20,46 @@ env:
 
 jobs:
 
+    debug-oidc:
+    name: Debug GitHub OIDC
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Inspect OIDC claims
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const token = await core.getIDToken('sts.amazonaws.com');
+
+            const payload = JSON.parse(
+              Buffer.from(
+                token.split('.')[1],
+                'base64url'
+              ).toString()
+            );
+
+            console.log(
+              JSON.stringify(
+                {
+                  iss: payload.iss,
+                  aud: payload.aud,
+                  sub: payload.sub,
+                  repository: payload.repository,
+                  repository_id: payload.repository_id,
+                  repository_owner: payload.repository_owner,
+                  repository_owner_id: payload.repository_owner_id,
+                  ref: payload.ref,
+                  event_name: payload.event_name
+                },
+                null,
+                2
+              )
+            );
+
   test-backend:
     name: Test Backend
     runs-on: ubuntu-latest
@@ -78,6 +118,7 @@ jobs:
     runs-on: ubuntu-latest
 
     needs:
+      - debug-oidc
       - test-backend
       - build-frontend
 
