@@ -11,7 +11,6 @@ COPY requirements.txt .
 RUN pip install --upgrade pip && pip install -r requirements.txt
 
 COPY app ./app
-COPY config.env ./config.env
 
 EXPOSE 8000
 
